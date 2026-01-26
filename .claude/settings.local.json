@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source:*)",
+      "Bash(python scripts/download_data.py:*)",
+      "Bash(curl:*)",
+      "Bash(venvScriptsactivate.bat)",
+      "Bash(python scriptsdownload_data.py:*)",
+      "Bash(venvScriptspython.exe scriptsdownload_data.py)",
+      "Bash(cd:*)",
+      "Bash(git init:*)",
+      "Bash(git branch:*)"
+    ]
+  }
+}

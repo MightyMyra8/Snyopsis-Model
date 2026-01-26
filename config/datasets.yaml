@@ -1,0 +1,264 @@
+# NHANES Dataset Configuration for The Pediatric Sentinel
+# This file defines the datasets, variables, and metadata for NHANES 2017-2018
+
+nhanes:
+  cycle: "2017-2018"
+  base_url: "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/"
+
+  datasets:
+    demographics:
+      code: "P_DEMO"
+      filename: "P_DEMO.XPT"
+      url: "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/P_DEMO.XPT"
+      description: "Demographic Variables and Sample Weights"
+
+      key_columns:
+        SEQN:
+          description: "Respondent Sequence Number"
+          type: "int"
+          role: "merge_key"
+
+        RIDAGEYR:
+          description: "Age in years at screening"
+          type: "int"
+          role: "filter"
+          filter_range: [12, 19]
+          unit: "years"
+
+        RIAGENDR:
+          description: "Gender"
+          type: "categorical"
+          role: "feature"
+          values:
+            1: "Male"
+            2: "Female"
+
+        BMXBMI:
+          description: "Body Mass Index"
+          type: "float"
+          role: "feature"
+          unit: "kg/m²"
+          normal_range: [18.5, 24.9]
+
+        RIDRETH3:
+          description: "Race/Hispanic origin with NH Asian"
+          type: "categorical"
+          role: "demographic"
+          values:
+            1: "Mexican American"
+            2: "Other Hispanic"
+            3: "Non-Hispanic White"
+            4: "Non-Hispanic Black"
+            6: "Non-Hispanic Asian"
+            7: "Other Race - Including Multi-Racial"
+
+    crp:
+      code: "P_HSCRP"
+      filename: "P_HSCRP.XPT"
+      url: "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/P_HSCRP.XPT"
+      description: "High-Sensitivity C-Reactive Protein"
+
+      key_columns:
+        SEQN:
+          description: "Respondent Sequence Number"
+          type: "int"
+          role: "merge_key"
+
+        LBXHSCRP:
+          description: "High-sensitivity C-Reactive Protein"
+          type: "float"
+          role: "feature"
+          unit: "mg/L"
+          normal_range: [0, 3]
+          clinical_significance: >
+            CRP is a marker of systemic inflammation. Elevated levels (>3 mg/L)
+            indicate increased cardiovascular risk and chronic inflammation,
+            which is linked to insulin resistance and Type 2 Diabetes.
+
+    biochemistry:
+      code: "P_BIOPRO"
+      filename: "P_BIOPRO.XPT"
+      url: "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/P_BIOPRO.XPT"
+      description: "Biochemistry Profile (Glucose, Insulin)"
+
+      key_columns:
+        SEQN:
+          description: "Respondent Sequence Number"
+          type: "int"
+          role: "merge_key"
+
+        LBXGLU:
+          description: "Fasting Glucose"
+          type: "float"
+          role: "feature"
+          unit: "mg/dL"
+          normal_range: [70, 100]
+          prediabetes_range: [100, 125]
+          diabetes_threshold: 126
+          clinical_significance: >
+            Fasting glucose is a standard measure of blood sugar control.
+            Levels ≥100 mg/dL indicate prediabetes; ≥126 mg/dL indicate diabetes.
+
+        LBXIN:
+          description: "Fasting Insulin"
+          type: "float"
+          role: "feature"
+          unit: "μU/mL"
+          normal_range: [2, 25]
+          clinical_significance: >
+            Elevated fasting insulin indicates insulin resistance, where the body
+            produces more insulin to maintain normal blood glucose levels.
+
+    physical_activity:
+      code: "P_PAQ"
+      filename: "P_PAQ.XPT"
+      url: "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/P_PAQ.XPT"
+      description: "Physical Activity Questionnaire"
+
+      key_columns:
+        SEQN:
+          description: "Respondent Sequence Number"
+          type: "int"
+          role: "merge_key"
+
+        PAD680:
+          description: "Minutes sedentary activity - weekday"
+          type: "float"
+          role: "feature"
+          unit: "minutes/day"
+          clinical_significance: >
+            Sedentary time is inversely related to metabolic health. High sedentary
+            time is associated with increased risk of obesity and diabetes.
+
+        PAQ706:
+          description: "Days physically active at least 60 minutes"
+          type: "int"
+          role: "feature"
+          unit: "days/week"
+          recommended: 7
+          clinical_significance: >
+            WHO recommends 60+ minutes of moderate-to-vigorous physical activity
+            daily for children and adolescents.
+
+        PAD733:
+          description: "Minutes vigorous-intensity activity - weekday"
+          type: "float"
+          role: "feature"
+          unit: "minutes/day"
+          clinical_significance: >
+            Vigorous activity improves cardiovascular fitness and insulin sensitivity.
+
+    dietary:
+      code: "P_DR1TOT"
+      filename: "P_DR1TOT.XPT"
+      url: "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/P_DR1TOT.XPT"
+      description: "Dietary Interview - Total Nutrient Intakes, First Day"
+
+      key_columns:
+        SEQN:
+          description: "Respondent Sequence Number"
+          type: "int"
+          role: "merge_key"
+
+        DR1TSUGR:
+          description: "Total sugars"
+          type: "float"
+          role: "feature"
+          unit: "grams/day"
+          recommended_max: 25  # AHA guideline for added sugars
+          clinical_significance: >
+            High sugar intake is linked to obesity, insulin resistance, and
+            Type 2 Diabetes. AHA recommends <25g/day of added sugars for children.
+
+        DR1TFIBE:
+          description: "Dietary fiber"
+          type: "float"
+          role: "feature"
+          unit: "grams/day"
+          recommended_min: 25  # USDA guideline
+          clinical_significance: >
+            Dietary fiber improves glycemic control, reduces inflammation, and
+            lowers diabetes risk. Recommended intake: 25-30g/day.
+
+# Calculated Features (derived from raw data)
+calculated_features:
+  HOMA_IR:
+    name: "Homeostatic Model Assessment of Insulin Resistance"
+    formula: "(LBXGLU × LBXIN) / 405"
+    unit: "dimensionless"
+    normal_range: [0, 2.5]
+    insulin_resistance_threshold: 2.5
+    severe_threshold: 5.0
+    role: "target"
+    clinical_significance: >
+      HOMA-IR estimates insulin resistance. Values >2.5 indicate insulin resistance,
+      a precursor to Type 2 Diabetes.
+
+  synthetic_mirna:
+    name: "Synthetic miRNA-155 Proxy"
+    formula: "log(1 + LBXHSCRP) × 1.2"
+    unit: "dimensionless"
+    role: "feature"
+    rationale: >
+      Since real miRNA-155 data is unavailable, we use CRP as a proxy based on
+      literature correlations between inflammation markers and miRNA-155 expression.
+
+  nutritional_stress_index:
+    name: "Nutritional Stress Index"
+    formula: "(DR1TSUGR / (DR1TFIBE + 1)) × 10"
+    unit: "0-100 scale"
+    role: "feature"
+    interpretation:
+      low: [0, 33]
+      medium: [33, 66]
+      high: [66, 100]
+    rationale: >
+      High sugar-to-fiber ratio indicates poor diet quality, associated with
+      increased diabetes risk.
+
+  physical_activity_score:
+    name: "Composite Physical Activity Score"
+    formula: "(PAQ706 × 60) + PAD733"
+    unit: "minutes/week"
+    role: "feature"
+    interpretation:
+      inactive: [0, 150]
+      moderate: [150, 300]
+      active: [300, 999]
+    rationale: >
+      Combines frequency and intensity of physical activity into a single metric.
+
+# Data Quality Rules
+data_quality:
+  minimum_sample_size: 500
+  max_missing_percentage: 0.20
+
+  outlier_detection:
+    method: "IQR"
+    multiplier: 1.5
+
+  critical_variables:
+    - LBXGLU  # Glucose (required for HOMA-IR)
+    - LBXIN   # Insulin (required for HOMA-IR)
+    - LBXHSCRP  # CRP (required input)
+    - DR1TSUGR  # Sugar (required input)
+    - DR1TFIBE  # Fiber (required input)
+
+# Merge Strategy
+merge_strategy:
+  base_dataset: "demographics"
+  merge_key: "SEQN"
+  merge_type: "left"
+
+  join_order:
+    1: "demographics"  # Start with this
+    2: "crp"
+    3: "biochemistry"
+    4: "physical_activity"
+    5: "dietary"
+
+  post_merge_actions:
+    - "filter_age_range"
+    - "remove_missing_critical"
+    - "calculate_homa_ir"
+    - "engineer_features"
