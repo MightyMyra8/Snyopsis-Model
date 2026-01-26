@@ -9,7 +9,11 @@
       "Bash(venvScriptspython.exe scriptsdownload_data.py)",
       "Bash(cd:*)",
       "Bash(git init:*)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git push:*)",
+      "Bash(git config:*)",
+      "Bash(findstr:*)"
     ]
   }
 }
