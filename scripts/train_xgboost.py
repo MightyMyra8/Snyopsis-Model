@@ -1,12 +1,13 @@
 """
-Model Training Script
+XGBoost Model Training Script
 
-Train Random Forest model to predict HOMA-IR (insulin resistance) and
-test the three-tier cascade hypothesis:
-    High-sugar diet + Low physical activity → Inflammation → Insulin resistance
+Train XGBoost model to predict HOMA-IR (insulin resistance) and
+compare performance with optimized Random Forest model.
+
+Expected R^2: 0.46-0.56 (Random Forest achieved 0.36)
 
 Usage:
-    python scripts/train_model.py
+    python scripts/train_xgboost.py
 """
 
 import sys
@@ -18,8 +19,8 @@ import joblib
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.models.random_forest import PediatricSentinelModel
-from src.models.trainer import prepare_data, train_with_cv, hyperparameter_tuning
+from src.models.xgboost_model import XGBoostSentinelModel
+from src.models.trainer import prepare_data, train_with_cv
 from src.models.evaluator import (
     evaluate_regression,
     evaluate_early_detection,
@@ -30,12 +31,12 @@ from config.constants import RANDOM_STATE
 
 
 def main():
-    """Main training function."""
+    """Main XGBoost training function."""
 
     print("\n" + "=" * 70)
-    print("THE PEDIATRIC SENTINEL - MODEL TRAINING")
+    print("THE PEDIATRIC SENTINEL - XGBOOST MODEL TRAINING")
     print("=" * 70)
-    print("\nTesting Three-Tier Cascade Hypothesis:")
+    print("\nTesting Three-Tier Cascade Hypothesis with XGBoost:")
     print("  Input:    High-sugar diet + Low physical activity")
     print("  Mediator: Inflammation (CRP)")
     print("  Output:   Insulin resistance (HOMA-IR)")
@@ -58,7 +59,7 @@ def main():
     print(f"  Columns: {df.shape[1]}")
 
     # =========================================================================
-    # 2. DEFINE FEATURES
+    # 2. DEFINE FEATURES (Same as Random Forest)
     # =========================================================================
     print("\n" + "=" * 70)
     print("FEATURE SELECTION")
@@ -72,7 +73,7 @@ def main():
         'LBXHSCRP'                         # CRP inflammation (Tier 2 - Mediator)
     ]
 
-    # NEW: Metabolic features for R² improvement (86-100% coverage)
+    # Metabolic features for R^2 improvement (86-100% coverage)
     metabolic_features = []
 
     # Anthropometric features
@@ -108,20 +109,20 @@ def main():
     if 'RIAGENDR' in df.columns:
         additional_features.append('RIAGENDR')
 
-    # NEW: Interaction features for capturing non-linear relationships
+    # Interaction features for capturing non-linear relationships
     interaction_features = []
 
-    # Tier 1 × Tier 1: Diet × Activity
+    # Tier 1 x Tier 1: Diet x Activity
     if 'sugar_inactivity_interaction' in df.columns:
         interaction_features.append('sugar_inactivity_interaction')
     if 'bmi_inactivity_interaction' in df.columns:
         interaction_features.append('bmi_inactivity_interaction')
 
-    # Tier 1 → Tier 2: Environmental stress → Inflammation
+    # Tier 1 -> Tier 2: Environmental stress -> Inflammation
     if 'sugar_crp_interaction' in df.columns:
         interaction_features.append('sugar_crp_interaction')
 
-    # Tier 2 × Confounders: Inflammation feedback loops
+    # Tier 2 x Confounders: Inflammation feedback loops
     if 'crp_bmi_interaction' in df.columns:
         interaction_features.append('crp_bmi_interaction')
 
@@ -133,29 +134,6 @@ def main():
 
     # Combine all features
     all_features = core_features + metabolic_features + additional_features + interaction_features
-
-    print(f"\nCore features (n={len(core_features)}):")
-    for i, feature in enumerate(core_features, 1):
-        valid_count = df[feature].notna().sum()
-        print(f"  {i}. {feature}: {valid_count:,} valid values")
-
-    if metabolic_features:
-        print(f"\nMetabolic features (n={len(metabolic_features)}) - NEW for R² improvement:")
-        for i, feature in enumerate(metabolic_features, 1):
-            valid_count = df[feature].notna().sum()
-            print(f"  {i}. {feature}: {valid_count:,} valid values")
-
-    if additional_features:
-        print(f"\nAdditional features (n={len(additional_features)}):")
-        for i, feature in enumerate(additional_features, 1):
-            valid_count = df[feature].notna().sum()
-            print(f"  {i}. {feature}: {valid_count:,} valid values")
-
-    if interaction_features:
-        print(f"\nInteraction features (n={len(interaction_features)}) - NEW for non-linear relationships:")
-        for i, feature in enumerate(interaction_features, 1):
-            valid_count = df[feature].notna().sum()
-            print(f"  {i}. {feature}: {valid_count:,} valid values")
 
     print(f"\nTotal features: {len(all_features)}")
     print(f"  Core: {len(core_features)}")
@@ -178,77 +156,38 @@ def main():
     glucose_test = df.loc[y_test.index, 'LBXGLU']
 
     # =========================================================================
-    # 4. CROSS-VALIDATION (Check model stability)
+    # 4. TRAIN XGBOOST MODEL
     # =========================================================================
     print("\n" + "=" * 70)
-    print("STEP 1: CROSS-VALIDATION ON TRAINING SET")
+    print("TRAINING XGBOOST MODEL")
     print("=" * 70)
 
-    # Create model with default hyperparameters
-    model_cv = PediatricSentinelModel(
-        n_estimators=200,
-        max_depth=20,
-        min_samples_split=5,
-        min_samples_leaf=2,
-        max_features='sqrt',
+    model = XGBoostSentinelModel(
+        n_estimators=500,
+        max_depth=6,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        gamma=0.1,
+        reg_alpha=0.1,
+        reg_lambda=1.0,
         random_state=RANDOM_STATE
     )
 
-    # Perform 5-fold cross-validation
-    cv_results = train_with_cv(model_cv.model, X_train, y_train, n_folds=5)
-
-    # =========================================================================
-    # 5. HYPERPARAMETER TUNING
-    # =========================================================================
-    print("\n" + "=" * 70)
-    print("STEP 2: HYPERPARAMETER OPTIMIZATION")
-    print("=" * 70)
-
-    # Define parameter grid
-    param_grid = {
-        'n_estimators': [200, 300, 500],
-        'max_depth': [20, 30, 40, None],  # Try deeper trees and unrestricted depth
-        'min_samples_split': [2, 5, 10],
-        'min_samples_leaf': [1, 2, 4],
-        'max_features': ['sqrt', 'log2', 0.5],
-        'min_impurity_decrease': [0.0, 0.001, 0.01]
-    }
-
-    print("\nThis may take 10-30 minutes depending on your CPU...")
-    print("Grid search will test multiple hyperparameter combinations.")
-
-    # Run grid search
-    tuning_results = hyperparameter_tuning(
-        X_train, y_train,
-        param_grid=param_grid,
-        cv=5,
-        verbose=2
-    )
-
-    best_params = tuning_results['best_params']
-
-    # =========================================================================
-    # 6. TRAIN FINAL MODEL WITH OPTIMIZED HYPERPARAMETERS
-    # =========================================================================
-    print("\n" + "=" * 70)
-    print("STEP 3: TRAINING FINAL MODEL (OPTIMIZED)")
-    print("=" * 70)
-
-    model = PediatricSentinelModel(**best_params)
-
-    print("\nTraining Random Forest with optimized hyperparameters...")
+    print("\nTraining XGBoost...")
     print(f"  Training samples: {len(X_train)}")
     print(f"  Features: {len(all_features)}")
-    print(f"  Hyperparameters:")
-    for param, value in best_params.items():
-        print(f"    {param}: {value}")
+    print(f"  Estimators: 500")
+    print(f"  Learning rate: 0.05")
+    print(f"  Max depth: 6")
+    print(f"  Regularization: L1=0.1, L2=1.0, Gamma=0.1")
 
-    model.fit(X_train, y_train)
+    model.fit(X_train, y_train, verbose=True)
 
     print("\n[OK] Model training complete!")
 
     # =========================================================================
-    # 6. FEATURE IMPORTANCE
+    # 5. FEATURE IMPORTANCE
     # =========================================================================
     print("\n" + "=" * 70)
     print("FEATURE IMPORTANCE")
@@ -279,10 +218,10 @@ def main():
     print(f"Tier 2 (Inflammation):     {tier2_importance:.4f} ({tier2_importance*100:.1f}%)")
 
     # =========================================================================
-    # 7. EVALUATE ON VALIDATION SET
+    # 6. EVALUATE ON VALIDATION SET
     # =========================================================================
     print("\n" + "=" * 70)
-    print("STEP 4: VALIDATION SET EVALUATION")
+    print("VALIDATION SET EVALUATION")
     print("=" * 70)
 
     y_pred_val = model.predict(X_val)
@@ -295,10 +234,10 @@ def main():
     )
 
     # =========================================================================
-    # 8. EVALUATE ON TEST SET (Final evaluation)
+    # 7. EVALUATE ON TEST SET (Final evaluation)
     # =========================================================================
     print("\n" + "=" * 70)
-    print("STEP 5: TEST SET EVALUATION (FINAL)")
+    print("TEST SET EVALUATION (FINAL)")
     print("=" * 70)
 
     y_pred_test = model.predict(X_test)
@@ -311,7 +250,7 @@ def main():
     )
 
     # =========================================================================
-    # 9. SAVE MODEL
+    # 8. SAVE MODEL
     # =========================================================================
     print("\n" + "=" * 70)
     print("SAVING MODEL")
@@ -320,28 +259,23 @@ def main():
     models_dir = project_root / "models" / "final"
     models_dir.mkdir(parents=True, exist_ok=True)
 
-    model_path = models_dir / "pediatric_sentinel_model.pkl"
+    model_path = models_dir / "xgboost_sentinel_model.pkl"
     model.save_model(model_path)
 
     # Save feature names
-    feature_names_path = models_dir / "feature_names.txt"
-    with open(feature_names_path, 'w') as f:
+    feature_names_path = models_dir / "xgboost_feature_names.txt"
+    with open(feature_names_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(all_features))
     print(f"[OK] Feature names saved: {feature_names_path.name}")
 
     # Save training metadata
     metadata = {
-        'model_type': 'RandomForestRegressor',
-        'hyperparameter_optimization': 'GridSearchCV',
-        'optimized_hyperparameters': best_params,
+        'model_type': 'XGBoostRegressor',
         'n_features': len(all_features),
         'features': all_features,
         'n_train': len(X_train),
         'n_val': len(X_val),
         'n_test': len(X_test),
-        'cv_mean_r2': cv_results['mean_r2'],
-        'cv_std_r2': cv_results['std_r2'],
-        'tuning_best_cv_r2': tuning_results['best_score'],
         'val_r2': val_metrics['r2_score'],
         'val_rmse': val_metrics['rmse'],
         'test_r2': test_metrics['r2_score'],
@@ -351,23 +285,19 @@ def main():
         'early_detection_rate': test_early_detection['early_detection_rate']
     }
 
-    metadata_path = models_dir / "model_metadata.txt"
+    metadata_path = models_dir / "xgboost_metadata.txt"
     with open(metadata_path, 'w', encoding='utf-8') as f:
         for key, value in metadata.items():
             if isinstance(value, list):
                 f.write(f"{key}:\n")
                 for item in value:
                     f.write(f"  - {item}\n")
-            elif isinstance(value, dict):
-                f.write(f"{key}:\n")
-                for k, v in value.items():
-                    f.write(f"  {k}: {v}\n")
             else:
                 f.write(f"{key}: {value}\n")
     print(f"[OK] Metadata saved: {metadata_path.name}")
 
     # =========================================================================
-    # 10. SAVE PLOTS
+    # 9. SAVE PLOTS
     # =========================================================================
     print("\n" + "=" * 70)
     print("GENERATING PLOTS")
@@ -380,15 +310,43 @@ def main():
     plot_predictions(
         y_test,
         y_pred_test,
-        save_path=plots_dir / "predictions_test.png"
+        save_path=plots_dir / "xgboost_predictions_test.png"
     )
 
     # Residual plot
     plot_residuals(
         y_test,
         y_pred_test,
-        save_path=plots_dir / "residuals_test.png"
+        save_path=plots_dir / "xgboost_residuals_test.png"
     )
+
+    # =========================================================================
+    # 10. COMPARE WITH RANDOM FOREST
+    # =========================================================================
+    print("\n" + "=" * 70)
+    print("COMPARISON: XGBOOST vs RANDOM FOREST")
+    print("=" * 70)
+
+    # Load Random Forest results
+    rf_metadata_path = models_dir / "model_metadata.txt"
+    if rf_metadata_path.exists():
+        rf_test_r2 = None
+        rf_sensitivity = None
+
+        with open(rf_metadata_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.startswith('test_r2:'):
+                    rf_test_r2 = float(line.split(':')[1].strip())
+                if line.startswith('test_sensitivity:'):
+                    rf_sensitivity = float(line.split(':')[1].strip())
+
+        if rf_test_r2 is not None and rf_sensitivity is not None:
+            print("\n                      Random Forest    XGBoost       Improvement")
+            print("-" * 70)
+            print(f"Test R^2 Score:       {rf_test_r2:.4f}          {test_metrics['r2_score']:.4f}       "
+                  f"{(test_metrics['r2_score'] - rf_test_r2)*100:+.1f}%")
+            print(f"Sensitivity:          {rf_sensitivity:.4f}          {test_early_detection['sensitivity']:.4f}       "
+                  f"{(test_early_detection['sensitivity'] - rf_sensitivity)*100:+.1f}%")
 
     # =========================================================================
     # FINAL SUMMARY
@@ -397,10 +355,9 @@ def main():
     print("TRAINING COMPLETE!")
     print("=" * 70)
 
-    print(f"\nModel Performance Summary:")
-    print(f"  Cross-Validation R²:  {cv_results['mean_r2']:.4f} ± {cv_results['std_r2']:.4f}")
-    print(f"  Validation R²:        {val_metrics['r2_score']:.4f}")
-    print(f"  Test R²:              {test_metrics['r2_score']:.4f}")
+    print(f"\nXGBoost Model Performance:")
+    print(f"  Validation R^2:       {val_metrics['r2_score']:.4f}")
+    print(f"  Test R^2:             {test_metrics['r2_score']:.4f}")
     print(f"  Test RMSE:            {test_metrics['rmse']:.4f}")
 
     print(f"\nEarly Detection Performance:")
@@ -435,15 +392,15 @@ def main():
         print("PARTIAL SUCCESS - Some targets not met")
         print("=" * 70)
         print("\nConsider:")
-        print("  - Hyperparameter tuning: python -c \"from src.models.trainer import hyperparameter_tuning; ...\"")
-        print("  - Feature engineering: Add interaction terms (sugar × activity)")
-        print("  - More data: Download additional NHANES cycles")
+        print("  - Download additional NHANES cycles (2019-2020)")
+        print("  - Remove CRP bottleneck (lose Tier 2 but gain 3x more data)")
+        print("  - Try ensemble model (XGBoost + Random Forest)")
 
     print(f"\nModel saved: {model_path}")
     print(f"\nNext steps:")
-    print(f"  1. Review feature importance and SHAP analysis")
-    print(f"  2. Build Streamlit application: app/streamlit_app.py")
-    print(f"  3. Test predictions: model = PediatricSentinelModel.load_model('{model_path.name}')")
+    print(f"  1. Review SHAP analysis for XGBoost")
+    print(f"  2. Build Streamlit application with best model")
+    print(f"  3. Create science fair presentation materials")
 
 
 if __name__ == "__main__":

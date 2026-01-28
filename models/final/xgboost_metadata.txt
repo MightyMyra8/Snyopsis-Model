@@ -1,0 +1,32 @@
+model_type: XGBoostRegressor
+n_features: 19
+features:
+  - comprehensive_inactivity_score
+  - DR1TSUGR
+  - DR1TFIBE
+  - LBXHSCRP
+  - BMXBMI
+  - BMXWAIST
+  - LBXGH
+  - BPXSY2
+  - BPXDI2
+  - carb_percent
+  - synthetic_mirna155
+  - RIDAGEYR
+  - RIAGENDR
+  - sugar_inactivity_interaction
+  - bmi_inactivity_interaction
+  - sugar_crp_interaction
+  - crp_bmi_interaction
+  - bmi_squared
+  - crp_squared
+n_train: 580
+n_val: 124
+n_test: 125
+val_r2: 0.14635955997795713
+val_rmse: 2.4590757853949636
+test_r2: 0.21207697549358162
+test_rmse: 2.9545756761085173
+test_sensitivity: 0.7903225806451613
+test_specificity: 0.6507936507936508
+early_detection_rate: 0.7407407407407407

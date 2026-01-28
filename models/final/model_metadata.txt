@@ -1,4 +1,12 @@
 model_type: RandomForestRegressor
+hyperparameter_optimization: GridSearchCV
+optimized_hyperparameters:
+  max_depth: 30
+  max_features: 0.5
+  min_impurity_decrease: 0.0
+  min_samples_leaf: 4
+  min_samples_split: 10
+  n_estimators: 300
 n_features: 19
 features:
   - comprehensive_inactivity_score
@@ -24,11 +32,12 @@ n_train: 580
 n_val: 124
 n_test: 125
 cv_mean_r2: 0.2793755651470021
-cv_std_r2: 0.10963804705836315
-val_r2: 0.41306780793014475
-val_rmse: 2.0390524069616336
-test_r2: 0.37351758799741197
-test_rmse: 2.63455739239301
+cv_std_r2: 0.10963804705836319
+tuning_best_cv_r2: 0.30231934984698877
+val_r2: 0.3863669925121791
+val_rmse: 2.084917040833297
+test_r2: 0.3560664415762972
+test_rmse: 2.6709991620678246
 test_sensitivity: 0.7580645161290323
-test_specificity: 0.6031746031746031
+test_specificity: 0.6984126984126984
 early_detection_rate: 0.8518518518518519
