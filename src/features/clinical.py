@@ -204,11 +204,73 @@ def calculate_all_clinical_features(df: pd.DataFrame) -> pd.DataFrame:
         df['LBXGLU'], df['HOMA_IR']
     )
 
+    # Add HbA1c (glycated hemoglobin - 3-month glucose average)
+    if 'LBXGH' in df.columns:
+        hba1c_valid = df['LBXGH'].notna().sum()
+        hba1c_pct = hba1c_valid / len(df) * 100
+        print(f"\n[OK] HbA1c available: {hba1c_valid:,}/{len(df):,} ({hba1c_pct:.1f}%)")
+
+        # Categorize HbA1c risk (<5.7% normal, 5.7-6.4% prediabetes, >=6.5% diabetes)
+        df['hba1c_category'] = pd.cut(
+            df['LBXGH'],
+            bins=[-np.inf, 5.7, 6.4, np.inf],
+            labels=[0, 1, 2],
+            include_lowest=True
+        ).astype(float)
+
+        normal = (df['LBXGH'] < 5.7).sum()
+        prediabetes = ((df['LBXGH'] >= 5.7) & (df['LBXGH'] < 6.4)).sum()
+        diabetes = (df['LBXGH'] >= 6.5).sum()
+        print(f"  HbA1c Distribution:")
+        print(f"    Normal (<5.7%): {normal:,} ({normal/hba1c_valid*100:.1f}%)")
+        print(f"    Prediabetes (5.7-6.4%): {prediabetes:,} ({prediabetes/hba1c_valid*100:.1f}%)")
+        print(f"    Diabetes (>=6.5%): {diabetes:,} ({diabetes/hba1c_valid*100:.1f}%)")
+    else:
+        print("\n[WARN] HbA1c (LBXGH) not found")
+        df['hba1c_category'] = np.nan
+
+    # Add BMI and obesity classification (confounding variable)
+    if 'BMXBMI' in df.columns:
+        bmi_valid = df['BMXBMI'].notna().sum()
+        bmi_pct = bmi_valid / len(df) * 100
+        print(f"\n[OK] BMI available: {bmi_valid:,}/{len(df):,} ({bmi_pct:.1f}%)")
+
+        # CDC BMI categories for adolescents (based on percentiles in real analysis)
+        # Using simplified cutoffs: <18.5 underweight, 18.5-24.9 normal, 25-29.9 overweight, >=30 obese
+        df['bmi_category'] = pd.cut(
+            df['BMXBMI'],
+            bins=[-np.inf, 18.5, 24.9, 29.9, np.inf],
+            labels=[0, 1, 2, 3],  # 0=underweight, 1=normal, 2=overweight, 3=obese
+            include_lowest=True
+        ).astype(float)
+
+        underweight = (df['BMXBMI'] < 18.5).sum()
+        normal_bmi = ((df['BMXBMI'] >= 18.5) & (df['BMXBMI'] < 25)).sum()
+        overweight = ((df['BMXBMI'] >= 25) & (df['BMXBMI'] < 30)).sum()
+        obese = (df['BMXBMI'] >= 30).sum()
+        print(f"  BMI Distribution:")
+        print(f"    Underweight (<18.5): {underweight:,} ({underweight/bmi_valid*100:.1f}%)")
+        print(f"    Normal (18.5-24.9): {normal_bmi:,} ({normal_bmi/bmi_valid*100:.1f}%)")
+        print(f"    Overweight (25-29.9): {overweight:,} ({overweight/bmi_valid*100:.1f}%)")
+        print(f"    Obese (>=30): {obese:,} ({obese/bmi_valid*100:.1f}%)")
+    else:
+        print("\n[WARN] BMI (BMXBMI) not found")
+        df['bmi_category'] = np.nan
+
+    # Add waist circumference (central obesity marker)
+    if 'BMXWAIST' in df.columns:
+        waist_valid = df['BMXWAIST'].notna().sum()
+        waist_pct = waist_valid / len(df) * 100
+        print(f"\n[OK] Waist circumference available: {waist_valid:,}/{len(df):,} ({waist_pct:.1f}%)")
+        print(f"  Mean: {df['BMXWAIST'].mean():.1f} cm")
+    else:
+        print("\n[WARN] Waist circumference (BMXWAIST) not found")
+
     print("\n" + "=" * 70)
     print("CLINICAL FEATURES COMPLETE")
     print("=" * 70)
-    print(f"New features added: HOMA_IR, HOMA_IR_category, "
-          f"glucose_insulin_ratio, early_detection_candidate")
+    print(f"New features added: HOMA_IR, HOMA_IR_category, glucose_insulin_ratio, ")
+    print(f"  early_detection_candidate, hba1c_category, bmi_category")
     print(f"Valid HOMA-IR values: {df['HOMA_IR'].notna().sum():,}/{len(df):,}")
 
     return df

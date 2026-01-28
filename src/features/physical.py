@@ -202,6 +202,104 @@ class PhysicalActivityFeatureCalculator:
 
         return pa_score
 
+    def calculate_comprehensive_inactivity_score(
+        self,
+        vig_rec: pd.Series = None,       # PAQ650 - Vigorous recreational (1=Yes, 2=No)
+        mod_rec: pd.Series = None,       # PAQ665 - Moderate recreational (1=Yes, 2=No)
+        walk_bike: pd.Series = None,     # PAQ635 - Walk/bicycle (1=Yes, 2=No)
+        sedentary_min: pd.Series = None, # PAD680 - Sedentary minutes
+        tv_hours: pd.Series = None,      # PAQ710 - TV hours/day
+        comp_hours: pd.Series = None     # PAQ715 - Computer hours/day
+    ) -> pd.Series:
+        """
+        Calculate comprehensive inactivity score using high-coverage variables.
+
+        Combines multiple activity indicators:
+        - Recreational activities (vigorous + moderate)
+        - Active transportation (walking/biking)
+        - Sedentary behavior
+        - Screen time
+
+        Score interpretation:
+        - 0-33: Active (low inactivity)
+        - 34-66: Moderate inactivity
+        - 67-100: Inactive (high inactivity risk)
+
+        Args:
+            vig_rec: Vigorous recreational activity (1=Yes, 2=No)
+            mod_rec: Moderate recreational activity (1=Yes, 2=No)
+            walk_bike: Walk or bicycle for transportation (1=Yes, 2=No)
+            sedentary_min: Daily sedentary minutes
+            tv_hours: Daily TV/video hours
+            comp_hours: Daily computer hours
+
+        Returns:
+            Comprehensive inactivity score (0-100, higher = more inactive)
+        """
+        # Initialize score
+        score = pd.Series(0.0, index=vig_rec.index if vig_rec is not None else pd.RangeIndex(0))
+
+        components_used = []
+
+        # Component 1: Lack of vigorous activity (0-25 points)
+        if vig_rec is not None:
+            # 1=Yes (active) → 0 points, 2=No (inactive) → 25 points
+            no_vigorous = (vig_rec == 2).astype(float) * 25
+            score = score + no_vigorous.fillna(0)
+            components_used.append('vigorous_rec')
+
+        # Component 2: Lack of moderate activity (0-20 points)
+        if mod_rec is not None:
+            no_moderate = (mod_rec == 2).astype(float) * 20
+            score = score + no_moderate.fillna(0)
+            components_used.append('moderate_rec')
+
+        # Component 3: No active transportation (0-15 points)
+        if walk_bike is not None:
+            no_walk_bike = (walk_bike == 2).astype(float) * 15
+            score = score + no_walk_bike.fillna(0)
+            components_used.append('walk_bike')
+
+        # Component 4: High sedentary time (0-20 points)
+        if sedentary_min is not None:
+            # >8 hours (480 min) = 20 points, 0 hours = 0 points
+            sedentary_penalty = np.clip(sedentary_min / 480 * 20, 0, 20)
+            score = score + sedentary_penalty.fillna(0)
+            components_used.append('sedentary')
+
+        # Component 5: High screen time (0-20 points)
+        if tv_hours is not None and comp_hours is not None:
+            total_screen = tv_hours.fillna(0) + comp_hours.fillna(0)
+            # >6 hours = 20 points, 0 hours = 0 points
+            screen_penalty = np.clip(total_screen / 6 * 20, 0, 20)
+            score = score + screen_penalty
+            components_used.append('screen_time')
+
+        # Normalize to 0-100 scale
+        max_possible = 100  # Sum of all components
+        score = np.clip(score, 0, max_possible)
+
+        # Report statistics
+        valid_values = score.dropna()
+        if len(valid_values) > 0:
+            print(f"[OK] Comprehensive inactivity score calculated: {len(valid_values)} values")
+            print(f"  Components used: {', '.join(components_used)}")
+            print(f"  Range: {valid_values.min():.2f} - {valid_values.max():.2f}")
+            print(f"  Mean: {valid_values.mean():.2f}")
+            print(f"  Median: {valid_values.median():.2f}")
+
+            # Risk distribution
+            active = (valid_values < 34).sum()
+            moderate = ((valid_values >= 34) & (valid_values < 67)).sum()
+            inactive = (valid_values >= 67).sum()
+
+            print(f"  Risk Distribution:")
+            print(f"    Active (<34): {active} ({active/len(valid_values)*100:.1f}%)")
+            print(f"    Moderate (34-66): {moderate} ({moderate/len(valid_values)*100:.1f}%)")
+            print(f"    Inactive (>=67): {inactive} ({inactive/len(valid_values)*100:.1f}%)")
+
+        return score
+
 
 def calculate_all_physical_features(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -275,13 +373,36 @@ def calculate_all_physical_features(df: pd.DataFrame) -> pd.DataFrame:
         print("[WARN] Cannot calculate physical activity score - missing data")
         df['physical_activity_score'] = np.nan
 
+    # Calculate comprehensive inactivity score (HIGH COVERAGE - uses yes/no questions)
+    has_vig_rec = 'PAQ650' in df.columns
+    has_mod_rec = 'PAQ665' in df.columns
+    has_walk_bike = 'PAQ635' in df.columns
+    has_tv = 'PAQ710' in df.columns
+    has_comp = 'PAQ715' in df.columns
+
+    if any([has_vig_rec, has_mod_rec, has_walk_bike, has_sedentary, has_tv]):
+        print("\n" + "-" * 70)
+        print("COMPREHENSIVE INACTIVITY SCORE (High Coverage)")
+        print("-" * 70)
+        df['comprehensive_inactivity_score'] = calculator.calculate_comprehensive_inactivity_score(
+            vig_rec=df.get('PAQ650'),
+            mod_rec=df.get('PAQ665'),
+            walk_bike=df.get('PAQ635'),
+            sedentary_min=df.get('PAD680'),
+            tv_hours=df.get('PAQ710'),
+            comp_hours=df.get('PAQ715')
+        )
+    else:
+        print("[WARN] Cannot calculate comprehensive inactivity score - no data available")
+        df['comprehensive_inactivity_score'] = np.nan
+
     print("\n" + "=" * 70)
     print("PHYSICAL ACTIVITY FEATURES COMPLETE")
     print("=" * 70)
     print(f"Features added: sedentary_score, active_score, activity_ratio, "
-          f"activity_category, physical_activity_score")
-    print(f"Valid physical activity scores: "
-          f"{df['physical_activity_score'].notna().sum():,}/{len(df):,}")
+          f"activity_category, physical_activity_score, comprehensive_inactivity_score")
+    print(f"Valid comprehensive inactivity scores: "
+          f"{df['comprehensive_inactivity_score'].notna().sum():,}/{len(df):,}")
 
     return df
 

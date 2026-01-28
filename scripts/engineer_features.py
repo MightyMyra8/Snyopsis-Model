@@ -105,7 +105,7 @@ def engineer_all_features(
         'LBXHSCRP',             # CRP (biomarker)
         'DR1TSUGR',             # Sugar intake
         'DR1TFIBE',             # Fiber intake
-        'sedentary_score'  # Sedentary time score (better coverage than physical_activity_score)
+        'comprehensive_inactivity_score'  # Comprehensive physical inactivity score (70%+ coverage)
     ]
 
     complete_cases = df[required_features].notna().all(axis=1)
@@ -210,14 +210,15 @@ def main():
         'physical_activity_score',
         'activity_category',
         'sedentary_score',
-        'active_score'
+        'active_score',
+        'comprehensive_inactivity_score'
     ]
 
     # Keep only columns that exist
     available_features = [col for col in required_features if col in df.columns]
 
     # Filter to complete cases on critical features
-    critical_features = ['HOMA_IR', 'LBXHSCRP', 'DR1TSUGR', 'DR1TFIBE', 'sedentary_score']
+    critical_features = ['HOMA_IR', 'LBXHSCRP', 'DR1TSUGR', 'DR1TFIBE', 'comprehensive_inactivity_score']
     critical_available = [col for col in critical_features if col in df.columns]
 
     df_complete = df[df[critical_available].notna().all(axis=1)].copy()
