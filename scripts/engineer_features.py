@@ -23,6 +23,7 @@ from src.features.clinical import calculate_all_clinical_features
 from src.features.biological import calculate_all_biological_features
 from src.features.nutritional import calculate_all_nutritional_features
 from src.features.physical import calculate_all_physical_features
+from src.features.interactions import create_interaction_features
 
 
 def engineer_all_features(
@@ -187,39 +188,105 @@ def main():
         mirna_method="log_linear"
     )
 
+    # Create interaction features for model improvement
+    print("\n" + "=" * 70)
+    print("CREATING INTERACTION FEATURES")
+    print("=" * 70)
+    df = create_interaction_features(df, verbose=True)
+
+    # Save updated feature-engineered dataset with interactions
+    df.to_csv(output_file, index=False)
+    print(f"\n[OK] Updated feature_engineered.csv with interaction features")
+
     # Create filtered dataset with only complete cases for modeling
     required_features = [
+        # Identifiers
         'SEQN',
         'NHANES_CYCLE',
+
+        # Demographics & Confounders
         'RIDAGEYR',
         'RIAGENDR',
+        'BMXBMI',           # NEW: Body Mass Index (95% coverage)
+        'BMXWAIST',         # NEW: Waist circumference (92% coverage)
+        'bmi_category',     # NEW: BMI classification
+
+        # Raw biomarkers
         'LBXGLU',
         'LBXIN',
         'LBXHSCRP',
+        'LBXGH',            # NEW: HbA1c (86% coverage)
+        'hba1c_category',   # NEW: HbA1c classification
+
+        # Blood pressure
+        'BPXSY2',           # NEW: Systolic BP (90.5% coverage)
+        'BPXDI2',           # NEW: Diastolic BP (90.5% coverage)
+
+        # Dietary features
         'DR1TSUGR',
         'DR1TFIBE',
+        'carb_percent',     # NEW: % calories from carbs (100% coverage)
+        'protein_percent',  # NEW: % calories from protein
+        'fat_percent',      # NEW: % calories from fat
+
+        # Physical activity
         'PAD680',
         'PAQ706',
         'PAD733',
+
+        # Target & engineered clinical
         'HOMA_IR',
         'HOMA_IR_category',
         'synthetic_mirna155',
         'inflammatory_index',
         'nutritional_stress_index',
         'nsi_category',
+
+        # Physical activity scores
         'physical_activity_score',
         'activity_category',
         'sedentary_score',
         'active_score',
-        'comprehensive_inactivity_score'
+        'comprehensive_inactivity_score',
+
+        # Interaction features
+        'sugar_inactivity_interaction',
+        'nsi_inactivity_interaction',
+        'bmi_inactivity_interaction',
+        'waist_inactivity_interaction',
+        'sugar_crp_interaction',
+        'crp_bmi_interaction',
+        'crp_waist_interaction',
+        'bmi_squared',
+        'crp_squared',
+        'sugar_squared',
+        'hba1c_bmi_interaction'
     ]
 
     # Keep only columns that exist
     available_features = [col for col in required_features if col in df.columns]
 
     # Filter to complete cases on critical features
-    critical_features = ['HOMA_IR', 'LBXHSCRP', 'DR1TSUGR', 'DR1TFIBE', 'comprehensive_inactivity_score']
+    # Core 4 features + key metabolic markers for improved R²
+    critical_features = [
+        'HOMA_IR',                          # Target variable
+        'LBXHSCRP',                         # CRP (Tier 2 mediator)
+        'DR1TSUGR',                         # Sugar intake (Tier 1)
+        'DR1TFIBE',                         # Fiber intake (Tier 1)
+        'comprehensive_inactivity_score',   # Physical activity (Tier 1)
+        'BMXBMI',                           # BMI (confounder - 95% coverage)
+        'carb_percent',                     # Diet composition (100% coverage)
+    ]
     critical_available = [col for col in critical_features if col in df.columns]
+
+    print(f"\n" + "=" * 70)
+    print("FILTERING FOR COMPLETE CASES")
+    print("=" * 70)
+    print(f"Critical features for modeling (all required):")
+    for feat in critical_available:
+        coverage = df[feat].notna().sum()
+        pct = coverage / len(df) * 100
+        print(f"  {feat}: {coverage:,}/{len(df):,} ({pct:.1f}%)")
 
     df_complete = df[df[critical_available].notna().all(axis=1)].copy()
     df_complete = df_complete[available_features]

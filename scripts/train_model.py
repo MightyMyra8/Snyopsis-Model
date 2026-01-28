@@ -64,13 +64,36 @@ def main():
     print("FEATURE SELECTION")
     print("=" * 70)
 
-    # Core features (4 required inputs for minimal model)
+    # Core features (4 required inputs for original model)
     core_features = [
         'comprehensive_inactivity_score',  # Physical activity (Tier 1 - Input)
         'DR1TSUGR',                        # Sugar intake (Tier 1 - Input)
         'DR1TFIBE',                        # Fiber intake (Tier 1 - Input)
         'LBXHSCRP'                         # CRP inflammation (Tier 2 - Mediator)
     ]
+
+    # NEW: Metabolic features for R² improvement (86-100% coverage)
+    metabolic_features = []
+
+    # Anthropometric features
+    if 'BMXBMI' in df.columns:
+        metabolic_features.append('BMXBMI')  # Body Mass Index (95%)
+    if 'BMXWAIST' in df.columns:
+        metabolic_features.append('BMXWAIST')  # Waist circumference (92%)
+
+    # Glycemic control
+    if 'LBXGH' in df.columns:
+        metabolic_features.append('LBXGH')  # HbA1c (86%)
+
+    # Blood pressure
+    if 'BPXSY2' in df.columns:
+        metabolic_features.append('BPXSY2')  # Systolic BP (90.5%)
+    if 'BPXDI2' in df.columns:
+        metabolic_features.append('BPXDI2')  # Diastolic BP (90.5%)
+
+    # Diet composition
+    if 'carb_percent' in df.columns:
+        metabolic_features.append('carb_percent')  # % calories from carbs (100%)
 
     # Additional features (improve model performance)
     additional_features = []
@@ -85,17 +108,42 @@ def main():
     if 'RIAGENDR' in df.columns:
         additional_features.append('RIAGENDR')
 
-    # Add BMI if available (confounding variable)
-    if 'BMXBMI' in df.columns:
-        additional_features.append('BMXBMI')
+    # NEW: Interaction features for capturing non-linear relationships
+    interaction_features = []
+
+    # Tier 1 × Tier 1: Diet × Activity
+    if 'sugar_inactivity_interaction' in df.columns:
+        interaction_features.append('sugar_inactivity_interaction')
+    if 'bmi_inactivity_interaction' in df.columns:
+        interaction_features.append('bmi_inactivity_interaction')
+
+    # Tier 1 → Tier 2: Environmental stress → Inflammation
+    if 'sugar_crp_interaction' in df.columns:
+        interaction_features.append('sugar_crp_interaction')
+
+    # Tier 2 × Confounders: Inflammation feedback loops
+    if 'crp_bmi_interaction' in df.columns:
+        interaction_features.append('crp_bmi_interaction')
+
+    # Polynomial features
+    if 'bmi_squared' in df.columns:
+        interaction_features.append('bmi_squared')
+    if 'crp_squared' in df.columns:
+        interaction_features.append('crp_squared')
 
     # Combine all features
-    all_features = core_features + additional_features
+    all_features = core_features + metabolic_features + additional_features + interaction_features
 
     print(f"\nCore features (n={len(core_features)}):")
     for i, feature in enumerate(core_features, 1):
         valid_count = df[feature].notna().sum()
         print(f"  {i}. {feature}: {valid_count:,} valid values")
+
+    if metabolic_features:
+        print(f"\nMetabolic features (n={len(metabolic_features)}) - NEW for R² improvement:")
+        for i, feature in enumerate(metabolic_features, 1):
+            valid_count = df[feature].notna().sum()
+            print(f"  {i}. {feature}: {valid_count:,} valid values")
 
     if additional_features:
         print(f"\nAdditional features (n={len(additional_features)}):")
@@ -103,7 +151,17 @@ def main():
             valid_count = df[feature].notna().sum()
             print(f"  {i}. {feature}: {valid_count:,} valid values")
 
+    if interaction_features:
+        print(f"\nInteraction features (n={len(interaction_features)}) - NEW for non-linear relationships:")
+        for i, feature in enumerate(interaction_features, 1):
+            valid_count = df[feature].notna().sum()
+            print(f"  {i}. {feature}: {valid_count:,} valid values")
+
     print(f"\nTotal features: {len(all_features)}")
+    print(f"  Core: {len(core_features)}")
+    print(f"  Metabolic: {len(metabolic_features)}")
+    print(f"  Additional: {len(additional_features)}")
+    print(f"  Interactions: {len(interaction_features)}")
 
     # =========================================================================
     # 3. PREPARE DATA (Train/Val/Test Split)
