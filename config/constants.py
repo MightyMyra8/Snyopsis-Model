@@ -31,6 +31,11 @@ SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 
 # Multiple NHANES cycles configuration for larger dataset
 NHANES_CYCLES = {
+    "2013-2014": {
+        "suffix": "_H",
+        "base_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/",
+        "year": "2013"
+    },
     "2015-2016": {
         "suffix": "_I",
         "base_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/",
@@ -40,6 +45,11 @@ NHANES_CYCLES = {
         "suffix": "_J",
         "base_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/",
         "year": "2017"
+    },
+    "2019-2020": {
+        "suffix": "_K",
+        "base_url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2019/DataFiles/",
+        "year": "2019"
     }
 }
 
