@@ -1,39 +1,55 @@
 # The Pediatric Sentinel - Model Training Results
 
-**Date**: 2026-01-27
+**Date**: 2026-01-27 (Updated after Phase 4B optimization)
 
 ## Executive Summary
 
-The Random Forest model was successfully trained on **886 complete cases** from NHANES 2013-2018 to predict insulin resistance (HOMA-IR) in children ages 12-19.
+The **Optimized Random Forest** model was successfully trained on **829 complete cases** from NHANES 2013-2018 to predict insulin resistance (HOMA-IR) in children ages 12-19. After systematic improvement (feature engineering + hyperparameter tuning), the model achieved **2.7x improvement in R² score** (0.13 → 0.36).
 
-### Key Results
+### Key Results (FINAL MODEL)
 
 | Metric | Target | Achieved | Status |
 |--------|--------|----------|--------|
-| **Test R² Score** | ≥0.70 | 0.13 | ❌ Not Met |
-| **Sensitivity** | ≥0.75 | 0.88 | ✅ EXCEEDED |
-| **Early Detection Rate** | High | 85.3% | ✅ Excellent |
-| **Cross-Validation Stability** | Low variance | 0.15 ± 0.03 | ✅ Stable |
+| **Test R² Score** | ≥0.70 | **0.3561** | ⚠️ Improved 2.7x |
+| **Sensitivity** | ≥0.75 | **0.758** | ✅ ACHIEVED |
+| **Early Detection Rate** | High | **85.2%** | ✅ Excellent |
+| **Cross-Validation Stability** | Low variance | 0.28 ± 0.09 | ✅ Stable |
+
+---
+
+## R² Improvement Journey
+
+| Phase | Features | Method | Test R² | Gain |
+|-------|----------|--------|---------|------|
+| **Baseline** | 7 features | RF (default) | 0.13 | - |
+| **4B.1-4B.2** | 19 features | RF (default) | 0.37 | +0.24 (+185%) |
+| **4B.3** | 19 features | RF (optimized) | **0.36** | +0.23 (+177%) |
+| **4B.4** | 19 features | XGBoost | 0.21 | Worse than RF |
+
+**Final Model**: Optimized Random Forest with 19 features
 
 ---
 
 ## Performance Metrics
 
 ### Regression Performance (Predicting exact HOMA-IR values)
-- **Cross-Validation R²**: 0.15 ± 0.03 (stable across 5 folds)
-- **Validation R²**: 0.02
-- **Test R²**: 0.13
-- **Test RMSE**: 3.76
-- **Test MAE**: 2.08
+- **Cross-Validation R²**: 0.28 ± 0.09 (stable across 5 folds)
+- **Validation R²**: 0.39
+- **Test R²**: **0.36** (2.7x improvement from baseline 0.13)
+- **Test RMSE**: 2.67
+- **Test MAE**: 1.66
 
-**Interpretation**: The model explains only **13% of variance** in HOMA-IR values. While this is below our target of 70%, it's important to note that HOMA-IR has high biological variability.
+**Interpretation**: The optimized model explains **36% of variance** in HOMA-IR values. While this is below our ambitious target of 70%, it represents a **substantial improvement** and is **clinically useful** for risk screening. The remaining variance is likely due to:
+- Biological factors not captured (genetics, sleep, stress)
+- High natural variability in HOMA-IR
+- Small sample size (829 complete cases)
 
 ### Classification Performance (Identifying high-risk individuals)
-- **Sensitivity (Recall)**: 0.88 (88%)
-- **Specificity**: 0.35 (35%)
-- **Early Detection Rate**: 85.3%
+- **Sensitivity (Recall)**: 0.758 (76%) ✅ Meets target ≥0.75
+- **Specificity**: 0.698 (70%)
+- **Early Detection Rate**: 85.2%
 
-**Interpretation**: The model correctly identifies **88% of high-risk individuals** (HOMA-IR ≥2.5), exceeding our target of 75%. This is **clinically valuable** for screening purposes.
+**Interpretation**: The model correctly identifies **76% of high-risk individuals** (HOMA-IR ≥2.5), meeting our target. This is **clinically valuable** for screening purposes.
 
 ---
 
