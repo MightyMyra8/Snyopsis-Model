@@ -1,0 +1,10 @@
+comprehensive_inactivity_score
+DR1TSUGR
+DR1TFIBE
+LBXHSCRP
+synthetic_mirna155
+RIDAGEYR
+RIAGENDR
+sugar_inactivity_interaction
+sugar_crp_interaction
+crp_squared

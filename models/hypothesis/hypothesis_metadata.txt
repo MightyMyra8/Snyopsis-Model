@@ -1,0 +1,26 @@
+model_type: Hypothesis-Focused RandomForestRegressor
+description: Model WITHOUT BMI/waist to reveal direct lifestyle effects
+n_features: 10
+features:
+  - comprehensive_inactivity_score
+  - DR1TSUGR
+  - DR1TFIBE
+  - LBXHSCRP
+  - synthetic_mirna155
+  - RIDAGEYR
+  - RIAGENDR
+  - sugar_inactivity_interaction
+  - sugar_crp_interaction
+  - crp_squared
+n_train: 615
+n_val: 132
+n_test: 132
+val_r2: -0.04972887560156458
+val_rmse: 3.922302618113815
+test_r2: 0.15136697299021507
+test_rmse: 3.395286625330586
+test_sensitivity: 0.7719298245614035
+test_specificity: 0.38666666666666666
+early_detection_rate: 0.75
+tier1_importance: 0.3030878610029875
+tier2_importance: 0.2781941045632712
