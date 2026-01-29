@@ -1,0 +1,31 @@
+Risk_Category,Age,Gender,Inactivity_Score,Activity_Level,Sugar_Intake_g,Fiber_Intake_g,Diet_Quality,BMI,CRP_mg_L,Glucose_mg_dL,HOMA_IR
+Low Risk,13,Male,0.0,Highly Active,321.75,60.900000000000006,Good Diet,18.9,1.0,101.0,1.458888888888889
+Low Risk,13,Male,51.66666666666667,Moderately Active,155.65,8.399999999999999,Very Poor Diet,18.6,0.3,99.0,1.254
+Low Risk,19,Male,15.0,Highly Active,59.49,9.0,Good Diet,25.7,1.1,112.0,2.486123456790124
+Low Risk,12,Male,0.0,Highly Active,122.41,11.100000000000003,Poor Diet,18.1,0.2,100.0,0.7012345679012346
+Low Risk,12,Female,40.0,Moderately Active,22.05,28.4,Excellent Diet,18.3,0.7,88.0,2.0859259259259257
+Low Risk,17,Male,52.5,Moderately Active,328.75000000000006,27.5,Poor Diet,20.0,0.08,103.0,1.5564444444444443
+Low Risk,14,Female,52.5,Moderately Active,89.06,8.6,Good Diet,20.4,0.08,99.0,2.1755555555555555
+Low Risk,18,Female,50.0,Moderately Active,26.86,6.6000000000000005,Excellent Diet,21.2,0.08,91.0,2.206469135802469
+Low Risk,17,Male,0.0,Highly Active,64.75,12.9,Excellent Diet,18.7,1.3,96.0,1.0050370370370372
+Low Risk,19,Male,45.83333333333333,Moderately Active,251.33,11.9,Very Poor Diet,20.7,0.08,101.0,1.084814814814815
+Moderate Risk,16,Male,75.83333333333333,Inactive,9.36,2.3,Excellent Diet,29.6,0.7,102.0,2.873629629629629
+Moderate Risk,17,Female,38.333333333333336,Moderately Active,63.17999999999999,5.3,Poor Diet,26.6,0.08,92.0,2.971259259259259
+Moderate Risk,15,Female,0.0,Highly Active,96.12,9.7,Good Diet,28.4,0.74,101.0,4.828049382716049
+Moderate Risk,14,Male,0.0,Highly Active,136.49,9.8,Poor Diet,24.0,0.5,98.0,4.437827160493827
+Moderate Risk,19,Male,40.0,Moderately Active,89.19,21.8,Excellent Diet,28.9,0.57,104.0,3.037827160493827
+Moderate Risk,12,Male,0.0,Highly Active,82.47,7.6,Good Diet,16.3,0.68,92.0,3.477827160493827
+Moderate Risk,19,Female,75.0,Inactive,133.56999999999996,11.2,Poor Diet,23.5,3.6,88.0,2.9898271604938267
+Moderate Risk,15,Female,0.0,Highly Active,55.64,9.599999999999998,Good Diet,19.6,0.35,102.0,3.1179259259259258
+Moderate Risk,12,Male,0.0,Highly Active,4.92,0.7,Excellent Diet,19.9,0.22,105.0,3.606296296296296
+Moderate Risk,14,Male,61.66666666666666,Moderately Active,183.4,40.00000000000001,Excellent Diet,22.0,0.08,89.0,3.105111111111112
+High Risk,19,Male,35.0,Moderately Active,190.87,6.9,Very Poor Diet,35.0,1.23,107.0,6.454345679012345
+High Risk,14,Female,0.0,Highly Active,46.72,10.8,Excellent Diet,29.9,2.17,98.0,5.108098765432098
+High Risk,13,Female,0.0,Highly Active,76.35,7.500000000000001,Good Diet,19.0,0.32,101.0,5.835555555555555
+High Risk,15,Male,70.0,Inactive,81.02,22.8,Excellent Diet,34.1,4.0,103.0,5.29241975308642
+High Risk,19,Female,57.5,Moderately Active,65.65,9.4,Good Diet,40.0,1.43,88.0,8.530567901234567
+High Risk,18,Male,59.16666666666667,Moderately Active,75.91,11.7,Good Diet,34.2,3.4,147.0,22.32585185185185
+High Risk,14,Male,0.0,Highly Active,32.72,29.1,Excellent Diet,32.6,2.84,106.0,8.435506172839505
+High Risk,14,Male,55.0,Moderately Active,104.11,23.4,Excellent Diet,21.8,0.9,98.0,6.889037037037037
+High Risk,17,Female,0.0,Highly Active,45.53999999999999,18.9,Excellent Diet,38.6,0.49,99.0,9.57488888888889
+High Risk,17,Male,0.0,Highly Active,68.53999999999999,15.6,Excellent Diet,47.3,5.86,103.0,8.301037037037037
