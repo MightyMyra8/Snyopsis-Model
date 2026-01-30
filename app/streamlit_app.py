@@ -304,9 +304,30 @@ def main():
                 'crp_squared': crp_level ** 2
             }
 
-            # Convert to DataFrames
-            df_full = pd.DataFrame([input_data_full])
-            df_hypothesis = pd.DataFrame([input_data_hypothesis])
+            # Convert to DataFrames with EXACT column order expected by models
+            # Order MUST match training: comprehensive_inactivity_score, DR1TSUGR, DR1TFIBE, LBXHSCRP,
+            # BMXBMI, BMXWAIST, LBXGH, BPXSY2, BPXDI2, carb_percent, synthetic_mirna155,
+            # RIDAGEYR, RIAGENDR, sugar_inactivity_interaction, bmi_inactivity_interaction,
+            # sugar_crp_interaction, crp_bmi_interaction, bmi_squared, crp_squared
+
+            feature_order_full = [
+                'comprehensive_inactivity_score', 'DR1TSUGR', 'DR1TFIBE', 'LBXHSCRP',
+                'BMXBMI', 'BMXWAIST', 'LBXGH', 'BPXSY2', 'BPXDI2', 'carb_percent',
+                'synthetic_mirna155', 'RIDAGEYR', 'RIAGENDR',
+                'sugar_inactivity_interaction', 'bmi_inactivity_interaction',
+                'sugar_crp_interaction', 'crp_bmi_interaction', 'bmi_squared', 'crp_squared'
+            ]
+
+            df_full = pd.DataFrame([input_data_full])[feature_order_full]
+
+            # Hypothesis model uses different features
+            feature_order_hypothesis = [
+                'comprehensive_inactivity_score', 'DR1TSUGR', 'DR1TFIBE', 'LBXHSCRP',
+                'synthetic_mirna155', 'RIDAGEYR', 'RIAGENDR',
+                'sugar_inactivity_interaction', 'sugar_crp_interaction', 'crp_squared'
+            ]
+
+            df_hypothesis = pd.DataFrame([input_data_hypothesis])[feature_order_hypothesis]
 
             # Make predictions
             try:
