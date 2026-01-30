@@ -416,7 +416,7 @@ def main():
 
                 fig = go.Figure(go.Indicator(
                     mode="gauge+number",
-                    value=homa_ir_full,
+                    value=homa_ir_pred,
                     domain={'x': [0, 1], 'y': [0, 1]},
                     gauge={
                         'axis': {'range': [None, 10]},
@@ -441,12 +441,12 @@ def main():
                 st.markdown("---")
                 st.subheader("📖 What Does This Mean?")
 
-                if homa_ir_full < 2.5:
+                if homa_ir_pred < 2.5:
                     st.success("""
                     ✅ **Low Risk**: Your insulin resistance is within normal range.
                     Keep up your healthy lifestyle habits!
                     """)
-                elif homa_ir_full < 5.0:
+                elif homa_ir_pred < 5.0:
                     st.warning("""
                     ⚠️ **Moderate Risk**: You have some insulin resistance.
                     Lifestyle changes can help prevent progression to Type 2 Diabetes.
@@ -465,7 +465,7 @@ def main():
 
                 with col1:
                     st.write("**Full Model** (with BMI)")
-                    st.metric("HOMA-IR Prediction", f"{homa_ir_full:.2f}")
+                    st.metric("HOMA-IR Prediction", f"{homa_ir_pred:.2f}")
                     st.caption("Best for accurate predictions")
 
                 with col2:
@@ -473,7 +473,7 @@ def main():
                     st.metric("HOMA-IR Prediction", f"{homa_ir_hypothesis:.2f}")
                     st.caption("Shows lifestyle factor effects")
 
-                difference = abs(homa_ir_full - homa_ir_hypothesis)
+                difference = abs(homa_ir_pred - homa_ir_hypothesis)
                 if difference > 0.5:
                     st.info(f"""
                     The {difference:.2f} point difference shows how BMI mediates lifestyle effects.
