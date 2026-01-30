@@ -236,6 +236,7 @@ def main():
 
         # Target & engineered clinical
         'HOMA_IR',
+        'HOMA_B',           # NEW: Beta-cell function (secondary target)
         'HOMA_IR_category',
         'synthetic_mirna155',
         'inflammatory_index',

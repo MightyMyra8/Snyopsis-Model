@@ -85,6 +85,75 @@ class ClinicalFeatureCalculator:
 
         return homa_ir
 
+    def calculate_homa_b(
+        self,
+        glucose: pd.Series,
+        insulin: pd.Series
+    ) -> pd.Series:
+        """
+        Calculate HOMA-B: Homeostatic Model Assessment of Beta-Cell Function.
+
+        Formula: (360 × Fasting Insulin [μU/mL]) / (Fasting Glucose [mg/dL] - 63)
+
+        Interpretation:
+        - Normal: 50-150% (around 100%)
+        - Beta-cell dysfunction: <50%
+        - Compensatory hyperinsulinemia: >150%
+
+        Lower HOMA-B = pancreas is failing to produce enough insulin (beta-cell exhaustion)
+        Higher HOMA-B = pancreas is overproducing insulin (compensation for insulin resistance)
+
+        Args:
+            glucose: Fasting glucose in mg/dL (LBXGLU)
+            insulin: Fasting insulin in μU/mL (LBXIN)
+
+        Returns:
+            HOMA-B percentage values
+        """
+        # Validate inputs
+        if glucose.isna().all() or insulin.isna().all():
+            print("[WARN] All glucose or insulin values are missing")
+            return pd.Series([np.nan] * len(glucose), index=glucose.index)
+
+        # Calculate HOMA-B
+        # Note: glucose must be > 63 mg/dL for formula to work (avoid division issues)
+        homa_b = (360 * insulin) / (glucose - 63)
+
+        # Set invalid values to NaN (glucose <= 63 causes issues)
+        homa_b = homa_b.where(glucose > 63, np.nan)
+
+        # Validation: check physiological ranges
+        valid_glucose = (glucose > 63) & (glucose <= 300)
+        valid_insulin = (insulin >= 1) & (insulin <= 200)
+        valid_homa_b = (homa_b >= 0) & (homa_b <= 500)
+
+        invalid_count = (~(valid_glucose & valid_insulin & valid_homa_b)).sum()
+
+        if invalid_count > 0:
+            print(f"[WARN] {invalid_count} HOMA-B values outside "
+                  f"physiological range (set to NaN)")
+            homa_b = homa_b.where(valid_glucose & valid_insulin & valid_homa_b, np.nan)
+
+        # Summary statistics
+        valid_values = homa_b.dropna()
+        if len(valid_values) > 0:
+            print(f"[OK] HOMA-B calculated: {len(valid_values)} valid values")
+            print(f"  Range: {valid_values.min():.1f}% - {valid_values.max():.1f}%")
+            print(f"  Mean: {valid_values.mean():.1f}%")
+            print(f"  Median: {valid_values.median():.1f}%")
+
+            # Function category distribution
+            low = (valid_values < 50).sum()
+            normal = ((valid_values >= 50) & (valid_values <= 150)).sum()
+            high = (valid_values > 150).sum()
+
+            print(f"  Beta-Cell Function Distribution:")
+            print(f"    Dysfunction (<50%): {low} ({low/len(valid_values)*100:.1f}%)")
+            print(f"    Normal (50-150%): {normal} ({normal/len(valid_values)*100:.1f}%)")
+            print(f"    Compensatory (>150%): {high} ({high/len(valid_values)*100:.1f}%)")
+
+        return homa_b
+
     def categorize_homa_ir(
         self,
         homa_ir: pd.Series
@@ -188,8 +257,11 @@ def calculate_all_clinical_features(df: pd.DataFrame) -> pd.DataFrame:
     print(f"Glucose available: {df['LBXGLU'].notna().sum():,}")
     print(f"Insulin available: {df['LBXIN'].notna().sum():,}")
 
-    # Calculate HOMA-IR (primary target variable)
+    # Calculate HOMA-IR (insulin resistance - primary target variable)
     df['HOMA_IR'] = calculator.calculate_homa_ir(df['LBXGLU'], df['LBXIN'])
+
+    # Calculate HOMA-B (beta-cell function - secondary target variable)
+    df['HOMA_B'] = calculator.calculate_homa_b(df['LBXGLU'], df['LBXIN'])
 
     # Calculate HOMA-IR risk category (for classification)
     df['HOMA_IR_category'] = calculator.categorize_homa_ir(df['HOMA_IR'])
@@ -269,9 +341,10 @@ def calculate_all_clinical_features(df: pd.DataFrame) -> pd.DataFrame:
     print("\n" + "=" * 70)
     print("CLINICAL FEATURES COMPLETE")
     print("=" * 70)
-    print(f"New features added: HOMA_IR, HOMA_IR_category, glucose_insulin_ratio, ")
+    print(f"New features added: HOMA_IR, HOMA_B, HOMA_IR_category, glucose_insulin_ratio, ")
     print(f"  early_detection_candidate, hba1c_category, bmi_category")
     print(f"Valid HOMA-IR values: {df['HOMA_IR'].notna().sum():,}/{len(df):,}")
+    print(f"Valid HOMA-B values: {df['HOMA_B'].notna().sum():,}/{len(df):,}")
 
     return df
 

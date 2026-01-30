@@ -24,6 +24,9 @@ import sys
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent))
 
+# Import composite risk calculator
+from src.models.composite_risk import CompositeDiabetesRisk
+
 # Page configuration
 st.set_page_config(
     page_title="The Pediatric Sentinel",
@@ -77,15 +80,22 @@ def load_models():
     """Load trained models."""
     project_root = Path(__file__).parent.parent
 
-    # Load full model
-    full_model_path = project_root / "models" / "final" / "pediatric_sentinel_model.pkl"
-    full_model = joblib.load(full_model_path)
+    # Load HOMA-IR prediction model (full model with BMI)
+    homa_ir_model_path = project_root / "models" / "final" / "pediatric_sentinel_model.pkl"
+    homa_ir_model = joblib.load(homa_ir_model_path)
 
-    # Load hypothesis model
+    # Load HOMA-B prediction model (beta-cell function)
+    homa_b_model_path = project_root / "models" / "beta_cell" / "homa_b_model.pkl"
+    homa_b_model = joblib.load(homa_b_model_path)
+
+    # Load hypothesis model (lifestyle factors only)
     hypothesis_model_path = project_root / "models" / "hypothesis" / "hypothesis_model.pkl"
     hypothesis_model = joblib.load(hypothesis_model_path)
 
-    return full_model, hypothesis_model
+    # Initialize composite risk calculator
+    risk_calculator = CompositeDiabetesRisk()
+
+    return homa_ir_model, homa_b_model, hypothesis_model, risk_calculator
 
 
 def categorize_risk(homa_ir):
@@ -175,7 +185,7 @@ def main():
 
     # Load models
     try:
-        full_model, hypothesis_model = load_models()
+        homa_ir_model, homa_b_model, hypothesis_model, risk_calculator = load_models()
     except Exception as e:
         st.error(f"Error loading models: {e}")
         st.stop()
@@ -247,28 +257,36 @@ def main():
             with st.expander("Advanced: Additional Biomarkers"):
                 bmi = st.number_input("BMI (optional)", 10.0, 50.0, 22.0)
                 waist = st.number_input("Waist circumference (cm, optional)", 40.0, 150.0, 75.0)
+                hba1c = st.number_input("HbA1c - % (optional)", 4.0, 10.0, 5.3, help="3-month average blood sugar, default: 5.3% (normal)")
+                systolic_bp = st.number_input("Systolic BP (optional)", 80.0, 180.0, 112.0, help="Top blood pressure number, default: 112 mmHg")
+                diastolic_bp = st.number_input("Diastolic BP (optional)", 40.0, 120.0, 65.0, help="Bottom blood pressure number, default: 65 mmHg")
+                carb_percent = st.number_input("Carbohydrate % of diet (optional)", 0.0, 100.0, 52.0, help="Percentage of calories from carbs, default: 52%")
 
         st.markdown("---")
 
         # Predict button
         if st.button("🔍 Calculate Risk", type="primary", use_container_width=True):
 
-            # Prepare input data for full model
+            # Prepare input data for full model (must match training feature order)
             input_data_full = {
                 'comprehensive_inactivity_score': inactivity_score,
                 'DR1TSUGR': sugar_intake,
                 'DR1TFIBE': fiber_intake,
                 'LBXHSCRP': crp_level,
+                'BMXBMI': bmi,
+                'BMXWAIST': waist,
+                'LBXGH': hba1c,
+                'BPXSY2': systolic_bp,
+                'BPXDI2': diastolic_bp,
+                'carb_percent': carb_percent,
                 'synthetic_mirna155': np.log1p(crp_level) * 1.2,  # Calculate synthetic miRNA
                 'RIDAGEYR': age,
                 'RIAGENDR': 1 if gender == "Male" else 2,
-                'BMXBMI': bmi,
-                'BMXWAIST': waist,
-                'bmi_squared': bmi ** 2,
                 'sugar_inactivity_interaction': sugar_intake * inactivity_score / 100,
-                'sugar_crp_interaction': sugar_intake * crp_level,
                 'bmi_inactivity_interaction': bmi * inactivity_score / 100,
+                'sugar_crp_interaction': sugar_intake * crp_level,
                 'crp_bmi_interaction': crp_level * bmi,
+                'bmi_squared': bmi ** 2,
                 'crp_squared': crp_level ** 2
             }
 
@@ -292,28 +310,77 @@ def main():
 
             # Make predictions
             try:
-                homa_ir_full = full_model.predict(df_full)[0]
+                # Predict HOMA-IR (insulin resistance)
+                homa_ir_pred = homa_ir_model.predict(df_full)[0]
+
+                # Predict HOMA-B (beta-cell function)
+                homa_b_pred = homa_b_model.predict(df_full)[0]
+
+                # Calculate composite risk
+                composite_risk = risk_calculator.calculate_composite_risk(homa_ir_pred, homa_b_pred)
+
+                # Predict with hypothesis model (lifestyle only)
                 homa_ir_hypothesis = hypothesis_model.predict(df_hypothesis)[0]
 
                 # Display results
                 st.markdown("---")
-                st.header("📊 Your Results")
+                st.header("📊 Complete Diabetes Risk Assessment")
 
-                # Main prediction (using full model)
-                risk_category, risk_class = categorize_risk(homa_ir_full)
-
+                # TOP ROW: Three Key Metrics
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
-                    st.metric("Predicted HOMA-IR", f"{homa_ir_full:.2f}")
+                    st.metric("HOMA-IR (Insulin Resistance)", f"{homa_ir_pred:.2f}")
+                    ir_cat = composite_risk['ir_category']
+                    if ir_cat == 'normal':
+                        st.success("✅ Normal")
+                    elif ir_cat == 'moderate':
+                        st.warning("⚠️ Moderate")
+                    else:
+                        st.error("🚨 Severe")
 
                 with col2:
-                    st.markdown(f'<div class="risk-box {risk_class}">{risk_category}</div>',
-                               unsafe_allow_html=True)
+                    st.metric("HOMA-B (Beta-Cell Function)", f"{homa_b_pred:.1f}%")
+                    b_cat = composite_risk['b_category']
+                    if b_cat == 'normal':
+                        st.success("✅ Normal (50-150%)")
+                    elif b_cat == 'high':
+                        st.warning("⚠️ Compensatory (>150%)")
+                    else:
+                        st.error("🚨 Dysfunction (<50%)")
 
                 with col3:
-                    confidence = 85  # Based on model's test performance
-                    st.metric("Model Confidence", f"{confidence}%")
+                    risk_score = composite_risk['risk_score']
+                    st.metric("Composite Risk Score", f"{risk_score:.0f}/100")
+
+                    # Color-coded risk level
+                    risk_level = composite_risk['risk_level']
+                    if risk_level == 'Low Risk':
+                        st.success(f"✅ {risk_level}")
+                    elif risk_level == 'Moderate Risk':
+                        st.warning(f"⚠️ {risk_level}")
+                    elif risk_level == 'High Risk':
+                        st.error(f"🚨 {risk_level}")
+                    else:  # CRITICAL
+                        st.error(f"⛔ {risk_level}")
+
+                # PROGRESSION STAGE
+                st.markdown("---")
+                stage = composite_risk['risk_stage']
+                warning = composite_risk['progression_warning']
+
+                if 'Stage 1' in stage:
+                    st.success(f"### {stage}")
+                    st.info(warning)
+                elif 'Stage 2' in stage:
+                    st.warning(f"### {stage}")
+                    st.info(warning)
+                elif 'Stage 3' in stage:
+                    st.error(f"### {stage}")
+                    st.warning(warning)
+                else:  # Stage 4
+                    st.error(f"### {stage}")
+                    st.error(f"⛔ {warning}")
 
                 # Gauge chart
                 import plotly.graph_objects as go
@@ -388,12 +455,27 @@ def main():
                 st.markdown("---")
                 st.subheader("💡 Personalized Recommendations")
 
-                recommendations = get_recommendations(input_data_full)
+                # Get recommendations from composite risk
+                recommendations = risk_calculator.get_recommendations(composite_risk)
 
                 for rec in recommendations:
-                    with st.expander(f"{rec['icon']} {rec['title']}"):
-                        st.write(f"**{rec['message']}**")
-                        st.caption(rec['details'])
+                    # Priority emoji
+                    if rec['priority'] == 'CRITICAL':
+                        emoji = "⛔"
+                        color = "error"
+                    elif rec['priority'] == 'High':
+                        emoji = "🚨"
+                        color = "warning"
+                    elif rec['priority'] == 'Moderate':
+                        emoji = "⚠️"
+                        color = "info"
+                    else:
+                        emoji = "✅"
+                        color = "success"
+
+                    with st.expander(f"{emoji} [{rec['priority']}] {rec['category']}: {rec['action']}"):
+                        st.write(f"**Action:** {rec['action']}")
+                        st.write(f"**Details:** {rec['details']}")
 
             except Exception as e:
                 st.error(f"Error making prediction: {e}")
