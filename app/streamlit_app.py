@@ -305,12 +305,10 @@ def main():
             }
 
             # Convert to DataFrames with EXACT column order expected by models
-            # Order MUST match training: comprehensive_inactivity_score, DR1TSUGR, DR1TFIBE, LBXHSCRP,
-            # BMXBMI, BMXWAIST, LBXGH, BPXSY2, BPXDI2, carb_percent, synthetic_mirna155,
-            # RIDAGEYR, RIAGENDR, sugar_inactivity_interaction, bmi_inactivity_interaction,
-            # sugar_crp_interaction, crp_bmi_interaction, bmi_squared, crp_squared
+            # CRITICAL: HOMA-IR and HOMA-B models have DIFFERENT feature orders!
 
-            feature_order_full = [
+            # HOMA-IR model feature order
+            feature_order_homa_ir = [
                 'comprehensive_inactivity_score', 'DR1TSUGR', 'DR1TFIBE', 'LBXHSCRP',
                 'BMXBMI', 'BMXWAIST', 'LBXGH', 'BPXSY2', 'BPXDI2', 'carb_percent',
                 'synthetic_mirna155', 'RIDAGEYR', 'RIAGENDR',
@@ -318,7 +316,17 @@ def main():
                 'sugar_crp_interaction', 'crp_bmi_interaction', 'bmi_squared', 'crp_squared'
             ]
 
-            df_full = pd.DataFrame([input_data_full])[feature_order_full]
+            # HOMA-B model feature order (synthetic_mirna155 is in different position!)
+            feature_order_homa_b = [
+                'comprehensive_inactivity_score', 'DR1TSUGR', 'DR1TFIBE', 'LBXHSCRP',
+                'synthetic_mirna155', 'BMXBMI', 'BMXWAIST', 'LBXGH', 'BPXSY2', 'BPXDI2',
+                'carb_percent', 'RIDAGEYR', 'RIAGENDR',
+                'sugar_inactivity_interaction', 'bmi_inactivity_interaction',
+                'sugar_crp_interaction', 'crp_bmi_interaction', 'bmi_squared', 'crp_squared'
+            ]
+
+            df_homa_ir = pd.DataFrame([input_data_full])[feature_order_homa_ir]
+            df_homa_b = pd.DataFrame([input_data_full])[feature_order_homa_b]
 
             # Hypothesis model uses different features
             feature_order_hypothesis = [
@@ -332,10 +340,10 @@ def main():
             # Make predictions
             try:
                 # Predict HOMA-IR (insulin resistance)
-                homa_ir_pred = homa_ir_model.predict(df_full)[0]
+                homa_ir_pred = homa_ir_model.predict(df_homa_ir)[0]
 
                 # Predict HOMA-B (beta-cell function)
-                homa_b_pred = homa_b_model.predict(df_full)[0]
+                homa_b_pred = homa_b_model.predict(df_homa_b)[0]
 
                 # Calculate composite risk
                 composite_risk = risk_calculator.calculate_composite_risk(homa_ir_pred, homa_b_pred)
