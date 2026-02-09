@@ -1,97 +1,76 @@
 """
 Biological Feature Engineering
 
-Creates synthetic miRNA-155 layer from CRP (C-Reactive Protein) levels.
-Since real miRNA data is unavailable in NHANES, we create a proxy based on
-the well-documented correlation between CRP and miRNA-155 in inflammation.
+Calculates immune and inflammatory features from NHANES biomarker data:
+- NLR (Neutrophil-to-Lymphocyte Ratio) from CBC dataset
+- CRP categorization from HSCRP dataset
+- Composite inflammatory index combining CRP and NLR
 
 Scientific Basis:
-- CRP is a marker of systemic inflammation
-- miRNA-155 is upregulated in inflammatory conditions
-- Both are elevated in insulin resistance and Type 2 Diabetes
+- CRP is a protein-based marker of systemic inflammation
+- NLR is a cell-based marker of immune activation
+- Both are independently elevated in insulin resistance and Type 2 Diabetes
+- Using both provides two genuinely independent immune signals
 """
 
 import pandas as pd
 import numpy as np
-from typing import Literal
 
 
 class BiologicalFeatureCalculator:
-    """Creates synthetic biological features from biomarker data."""
+    """Creates biological features from biomarker data."""
 
     def __init__(self):
         """Initialize biological feature calculator."""
         self.crp_normal = 3.0  # mg/L - normal threshold
         self.crp_high = 10.0   # mg/L - high inflammation threshold
+        self.nlr_normal = 3.0  # NLR above this = elevated immune activation
+        self.nlr_high = 6.0    # NLR above this = high inflammation
 
-    def create_synthetic_mirna(
+    def calculate_nlr(
         self,
-        crp: pd.Series,
-        method: Literal["log_linear", "sigmoid", "power"] = "log_linear"
+        neutrophils: pd.Series,
+        lymphocytes: pd.Series
     ) -> pd.Series:
         """
-        Generate synthetic miRNA-155 proxy from CRP levels.
+        Calculate Neutrophil-to-Lymphocyte Ratio (NLR) from CBC data.
 
-        Based on literature showing correlation between CRP and miRNA-155
-        in inflammatory conditions and insulin resistance.
-
-        Methods:
-        - log_linear: np.log1p(crp) * weight_factor
-          Best for capturing exponential relationship
-        - sigmoid: 1 / (1 + np.exp(-k * (crp - threshold)))
-          Best for modeling threshold effects
-        - power: crp ** exponent
-          Best for simple power-law relationship
+        NLR is a clinically validated marker of systemic immune activation,
+        independently associated with insulin resistance and metabolic syndrome.
 
         Args:
-            crp: High-sensitivity CRP in mg/L (LBXHSCRP)
-            method: Calculation method
+            neutrophils: Neutrophil count in 1000 cells/uL (LBDNENO)
+            lymphocytes: Lymphocyte count in 1000 cells/uL (LBDLYMNO)
 
         Returns:
-            Synthetic miRNA-155 values (normalized to 0-10 scale)
+            NLR values (typical range: 0.5-8.0)
         """
-        if crp.isna().all():
-            print("[WARN] All CRP values are missing")
-            return pd.Series([np.nan] * len(crp), index=crp.index)
+        if neutrophils.isna().all() or lymphocytes.isna().all():
+            print("[WARN] All neutrophil or lymphocyte values are missing")
+            return pd.Series([np.nan] * len(neutrophils), index=neutrophils.index)
 
-        if method == "log_linear":
-            # Logarithmic transformation with weight factor
-            # Based on TODAY Study proxy weight of 1.2
-            weight_factor = 1.2
-            mirna = np.log1p(crp) * weight_factor
+        # Avoid division by zero: replace zero lymphocytes with NaN
+        safe_lymphocytes = lymphocytes.replace(0, np.nan)
 
-        elif method == "sigmoid":
-            # Sigmoid transformation around CRP threshold
-            k = 0.5  # Steepness parameter
-            threshold = self.crp_normal
-            mirna = 10 / (1 + np.exp(-k * (crp - threshold)))
-
-        elif method == "power":
-            # Power-law transformation
-            exponent = 0.6
-            mirna = crp ** exponent
-
-        else:
-            raise ValueError(f"Unknown method: {method}")
-
-        # Normalize to 0-10 scale
-        valid_mirna = mirna.dropna()
-        if len(valid_mirna) > 0:
-            min_val = valid_mirna.min()
-            max_val = valid_mirna.max()
-            if max_val > min_val:
-                mirna = ((mirna - min_val) / (max_val - min_val)) * 10
+        nlr = neutrophils / safe_lymphocytes
 
         # Summary statistics
-        valid_values = mirna.dropna()
+        valid_values = nlr.dropna()
         if len(valid_values) > 0:
-            print(f"[OK] Synthetic miRNA-155 calculated ({method}): "
-                  f"{len(valid_values)} values")
+            print(f"[OK] NLR calculated: {len(valid_values)} values")
             print(f"  Range: {valid_values.min():.2f} - {valid_values.max():.2f}")
             print(f"  Mean: {valid_values.mean():.2f}")
             print(f"  Median: {valid_values.median():.2f}")
 
-        return mirna
+            # Distribution
+            normal = (valid_values < self.nlr_normal).sum()
+            elevated = ((valid_values >= self.nlr_normal) & (valid_values < self.nlr_high)).sum()
+            high = (valid_values >= self.nlr_high).sum()
+            print(f"  Normal (<{self.nlr_normal}): {normal} ({normal/len(valid_values)*100:.1f}%)")
+            print(f"  Elevated ({self.nlr_normal}-{self.nlr_high}): {elevated} ({elevated/len(valid_values)*100:.1f}%)")
+            print(f"  High (>{self.nlr_high}): {high} ({high/len(valid_values)*100:.1f}%)")
+
+        return nlr
 
     def categorize_crp(
         self,
@@ -137,30 +116,34 @@ class BiologicalFeatureCalculator:
     def calculate_inflammatory_index(
         self,
         crp: pd.Series,
-        synthetic_mirna: pd.Series
+        nlr: pd.Series
     ) -> pd.Series:
         """
-        Calculate composite inflammatory index from CRP and synthetic miRNA.
+        Calculate composite inflammatory index from CRP and NLR.
 
-        Combines CRP and miRNA signals into single inflammation score.
+        Combines protein-based (CRP) and cell-based (NLR) inflammation signals
+        into a single score.
 
         Args:
             crp: CRP levels (mg/L)
-            synthetic_mirna: Synthetic miRNA-155 values
+            nlr: Neutrophil-to-Lymphocyte Ratio
 
         Returns:
             Inflammatory index (0-100 scale)
         """
-        # Normalize CRP to 0-10 scale
-        crp_normalized = crp.clip(0, 20) / 2  # Cap at 20 mg/L
+        # Normalize CRP to 0-10 scale (cap at 20 mg/L)
+        crp_normalized = crp.clip(0, 20) / 2
 
-        # Composite: weighted average
-        crp_weight = 0.6  # CRP has stronger clinical validation
-        mirna_weight = 0.4
+        # Normalize NLR to 0-10 scale (cap at 10)
+        nlr_normalized = nlr.clip(0, 10)
+
+        # Composite: weighted average (CRP has stronger clinical validation)
+        crp_weight = 0.6
+        nlr_weight = 0.4
 
         inflammatory_index = (
             crp_normalized * crp_weight +
-            synthetic_mirna * mirna_weight
+            nlr_normalized * nlr_weight
         )
 
         # Scale to 0-100
@@ -175,19 +158,17 @@ class BiologicalFeatureCalculator:
         return inflammatory_index
 
 
-def calculate_all_biological_features(
-    df: pd.DataFrame,
-    mirna_method: Literal["log_linear", "sigmoid", "power"] = "log_linear"
-) -> pd.DataFrame:
+def calculate_all_biological_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Calculate all biological features from NHANES dataset.
 
+    Requires CRP (LBXHSCRP) and CBC columns (LBDNENO, LBDLYMNO).
+
     Args:
-        df: DataFrame with LBXHSCRP column
-        mirna_method: Method for synthetic miRNA calculation
+        df: DataFrame with LBXHSCRP, LBDNENO, LBDLYMNO columns
 
     Returns:
-        DataFrame with added biological features
+        DataFrame with added biological features (nlr, crp_category, inflammatory_index)
     """
     print("\n" + "=" * 70)
     print("BIOLOGICAL FEATURE ENGINEERING")
@@ -203,25 +184,29 @@ def calculate_all_biological_features(
     print(f"\nDataset: {len(df):,} rows")
     print(f"CRP available: {df['LBXHSCRP'].notna().sum():,}")
 
-    # Create synthetic miRNA-155
-    df['synthetic_mirna155'] = calculator.create_synthetic_mirna(
-        df['LBXHSCRP'], method=mirna_method
-    )
+    # Calculate NLR from CBC data
+    if 'LBDNENO' in df.columns and 'LBDLYMNO' in df.columns:
+        print(f"Neutrophils available: {df['LBDNENO'].notna().sum():,}")
+        print(f"Lymphocytes available: {df['LBDLYMNO'].notna().sum():,}")
+        df['nlr'] = calculator.calculate_nlr(df['LBDNENO'], df['LBDLYMNO'])
+    else:
+        print("[WARN] CBC columns (LBDNENO, LBDLYMNO) not found - NLR will be NaN")
+        print("  Make sure CBC dataset is included in download")
+        df['nlr'] = np.nan
 
     # Categorize CRP
     df['crp_category'] = calculator.categorize_crp(df['LBXHSCRP'])
 
-    # Calculate inflammatory index
+    # Calculate inflammatory index (using CRP + NLR)
     df['inflammatory_index'] = calculator.calculate_inflammatory_index(
-        df['LBXHSCRP'], df['synthetic_mirna155']
+        df['LBXHSCRP'], df['nlr']
     )
 
     print("\n" + "=" * 70)
     print("BIOLOGICAL FEATURES COMPLETE")
     print("=" * 70)
-    print(f"New features added: synthetic_mirna155, crp_category, inflammatory_index")
-    print(f"Valid synthetic miRNA values: "
-          f"{df['synthetic_mirna155'].notna().sum():,}/{len(df):,}")
+    print(f"New features added: nlr, crp_category, inflammatory_index")
+    print(f"Valid NLR values: {df['nlr'].notna().sum():,}/{len(df):,}")
 
     return df
 
@@ -248,7 +233,7 @@ if __name__ == "__main__":
     print(f"  Columns: {df.shape[1]}")
 
     # Calculate biological features
-    df = calculate_all_biological_features(df, mirna_method="log_linear")
+    df = calculate_all_biological_features(df)
 
     # Save result
     output_file = data_file.parent / "pediatric_with_biological_features.csv"

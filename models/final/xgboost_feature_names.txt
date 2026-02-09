@@ -8,7 +8,7 @@ LBXGH
 BPXSY2
 BPXDI2
 carb_percent
-synthetic_mirna155
+nlr
 RIDAGEYR
 RIAGENDR
 sugar_inactivity_interaction

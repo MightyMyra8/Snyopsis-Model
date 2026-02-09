@@ -2,7 +2,7 @@ comprehensive_inactivity_score
 DR1TSUGR
 DR1TFIBE
 LBXHSCRP
-synthetic_mirna155
+nlr
 RIDAGEYR
 RIAGENDR
 sugar_inactivity_interaction

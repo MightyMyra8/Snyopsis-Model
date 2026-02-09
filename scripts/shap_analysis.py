@@ -85,7 +85,7 @@ def main():
         'BPXSY2',
         'BPXDI2',
         'carb_percent',
-        'synthetic_mirna155',
+        'nlr',
         'RIDAGEYR',
         'RIAGENDR',
         'sugar_inactivity_interaction',
@@ -155,7 +155,7 @@ def main():
 
     # Verify three-tier cascade
     tier1_features = ['comprehensive_inactivity_score', 'DR1TSUGR', 'DR1TFIBE']
-    tier2_features = ['LBXHSCRP', 'synthetic_mirna155']
+    tier2_features = ['LBXHSCRP', 'nlr']
 
     tier1_shap = shap_importance[
         shap_importance['feature'].isin(tier1_features)

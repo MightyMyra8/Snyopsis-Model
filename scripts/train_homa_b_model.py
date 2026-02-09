@@ -75,7 +75,7 @@ def main():
         'DR1TFIBE',
         # Tier 2: Inflammation
         'LBXHSCRP',
-        'synthetic_mirna155',
+        'nlr',
         # Metabolic markers
         'BMXBMI',
         'BMXWAIST',

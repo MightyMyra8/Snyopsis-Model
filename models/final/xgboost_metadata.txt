@@ -11,7 +11,7 @@ features:
   - BPXSY2
   - BPXDI2
   - carb_percent
-  - synthetic_mirna155
+  - nlr
   - RIDAGEYR
   - RIAGENDR
   - sugar_inactivity_interaction
@@ -20,13 +20,13 @@ features:
   - crp_bmi_interaction
   - bmi_squared
   - crp_squared
-n_train: 580
+n_train: 578
 n_val: 124
-n_test: 125
-val_r2: 0.14635955997795713
-val_rmse: 2.4590757853949636
-test_r2: 0.21207697549358162
-test_rmse: 2.9545756761085173
-test_sensitivity: 0.7903225806451613
-test_specificity: 0.6507936507936508
-early_detection_rate: 0.7407407407407407
+n_test: 124
+val_r2: 0.05025926513012058
+val_rmse: 2.3399593278998494
+test_r2: 0.15035280865105682
+test_rmse: 3.2849502483585167
+test_sensitivity: 0.8064516129032258
+test_specificity: 0.5645161290322581
+early_detection_rate: 0.8333333333333334

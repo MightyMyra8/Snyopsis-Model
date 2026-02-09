@@ -246,6 +246,12 @@ def main():
                 help="High-sensitivity C-Reactive Protein from blood test (inflammation marker)"
             )
 
+            nlr_value = st.number_input(
+                "NLR (Neutrophil-to-Lymphocyte Ratio)",
+                0.1, 15.0, 1.8,
+                help="From CBC blood test: neutrophil count / lymphocyte count (immune activation marker)"
+            )
+
             st.markdown("---")
 
             st.subheader("👤 Optional Information")
@@ -279,7 +285,7 @@ def main():
                 'BPXSY2': systolic_bp,
                 'BPXDI2': diastolic_bp,
                 'carb_percent': carb_percent,
-                'synthetic_mirna155': np.log1p(crp_level) * 1.2,  # Calculate synthetic miRNA
+                'nlr': nlr_value,  # Neutrophil-to-Lymphocyte Ratio from CBC
                 'RIDAGEYR': age,
                 'RIAGENDR': 1 if gender == "Male" else 2,
                 'sugar_inactivity_interaction': sugar_intake * inactivity_score / 100,
@@ -296,7 +302,7 @@ def main():
                 'DR1TSUGR': sugar_intake,
                 'DR1TFIBE': fiber_intake,
                 'LBXHSCRP': crp_level,
-                'synthetic_mirna155': np.log1p(crp_level) * 1.2,
+                'nlr': nlr_value,
                 'RIDAGEYR': age,
                 'RIAGENDR': 1 if gender == "Male" else 2,
                 'sugar_inactivity_interaction': sugar_intake * inactivity_score / 100,
@@ -311,15 +317,15 @@ def main():
             feature_order_homa_ir = [
                 'comprehensive_inactivity_score', 'DR1TSUGR', 'DR1TFIBE', 'LBXHSCRP',
                 'BMXBMI', 'BMXWAIST', 'LBXGH', 'BPXSY2', 'BPXDI2', 'carb_percent',
-                'synthetic_mirna155', 'RIDAGEYR', 'RIAGENDR',
+                'nlr', 'RIDAGEYR', 'RIAGENDR',
                 'sugar_inactivity_interaction', 'bmi_inactivity_interaction',
                 'sugar_crp_interaction', 'crp_bmi_interaction', 'bmi_squared', 'crp_squared'
             ]
 
-            # HOMA-B model feature order (synthetic_mirna155 is in different position!)
+            # HOMA-B model feature order (nlr is in different position!)
             feature_order_homa_b = [
                 'comprehensive_inactivity_score', 'DR1TSUGR', 'DR1TFIBE', 'LBXHSCRP',
-                'synthetic_mirna155', 'BMXBMI', 'BMXWAIST', 'LBXGH', 'BPXSY2', 'BPXDI2',
+                'nlr', 'BMXBMI', 'BMXWAIST', 'LBXGH', 'BPXSY2', 'BPXDI2',
                 'carb_percent', 'RIDAGEYR', 'RIAGENDR',
                 'sugar_inactivity_interaction', 'bmi_inactivity_interaction',
                 'sugar_crp_interaction', 'crp_bmi_interaction', 'bmi_squared', 'crp_squared'
@@ -331,7 +337,7 @@ def main():
             # Hypothesis model uses different features
             feature_order_hypothesis = [
                 'comprehensive_inactivity_score', 'DR1TSUGR', 'DR1TFIBE', 'LBXHSCRP',
-                'synthetic_mirna155', 'RIDAGEYR', 'RIAGENDR',
+                'nlr', 'RIDAGEYR', 'RIAGENDR',
                 'sugar_inactivity_interaction', 'sugar_crp_interaction', 'crp_squared'
             ]
 
@@ -542,18 +548,18 @@ def main():
 
         # You can load actual feature importance from models
         st.write("**Full Model Top Features:**")
-        st.write("1. Waist Circumference (27.4%)")
-        st.write("2. BMI² (17.0%)")
-        st.write("3. BMI (16.0%)")
-        st.write("4. synthetic miRNA-155 (7.9%)")
-        st.write("5. CRP (6.4%)")
+        st.write("1. Waist Circumference")
+        st.write("2. BMI²")
+        st.write("3. BMI")
+        st.write("4. NLR (Neutrophil-to-Lymphocyte Ratio)")
+        st.write("5. CRP")
 
         st.write("**Hypothesis Model Top Features:**")
-        st.write("1. Physical Activity (8.0%) ⬆️")
-        st.write("2. Sugar Intake (11.1%) ⬆️")
-        st.write("3. Fiber Intake (11.1%) ⬆️")
-        st.write("4. CRP (12.7%)")
-        st.write("5. synthetic miRNA-155 (15.1%)")
+        st.write("1. Physical Activity ⬆️")
+        st.write("2. Sugar Intake ⬆️")
+        st.write("3. Fiber Intake ⬆️")
+        st.write("4. CRP")
+        st.write("5. NLR (Neutrophil-to-Lymphocyte Ratio)")
 
         st.info("""
         **Key Finding**: When BMI is removed, physical activity importance increases 6.2x!
@@ -580,8 +586,8 @@ def main():
         ⬇️
 
         **Tier 2: Biological Mediators**
-        - Systemic inflammation (elevated CRP)
-        - Epigenetic changes (miRNA-155 dysregulation)
+        - Systemic inflammation (elevated CRP — protein marker)
+        - Immune activation (elevated NLR — cell-based marker from CBC)
 
         ⬇️
 

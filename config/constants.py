@@ -73,7 +73,8 @@ ENHANCED_DATASET_NAMES = {
     "BPX": "Blood Pressure",
     "BMX": "Body Measures",
     "MCQ": "Medical Conditions",
-    "SLQ": "Sleep Disorders"
+    "SLQ": "Sleep Disorders",
+    "CBC": "Complete Blood Count",
 }
 
 # Generate dataset codes for each cycle
@@ -264,7 +265,7 @@ ADDITIONAL_FEATURES = [
     "age",                      # Age in years (12-19)
     "gender",                   # 1=Male, 2=Female
     "bmi",                      # Body Mass Index
-    "synthetic_mirna",          # miRNA-155 proxy from CRP
+    "nlr",                      # Neutrophil-to-Lymphocyte Ratio from CBC
     "nutritional_stress_index", # Sugar/fiber ratio (0-100)
     "sedentary_minutes",        # Daily sedentary time
     "glucose",                  # Fasting glucose (mg/dL)
@@ -291,11 +292,10 @@ ALL_FEATURES = REQUIRED_FEATURES + ADDITIONAL_FEATURES
 # Feature Engineering Parameters
 # ============================================================================
 
-# Synthetic miRNA-155 generation
-MIRNA_METHOD = "log_linear"  # Options: "log_linear", "sigmoid"
-MIRNA_WEIGHT_FACTOR = 1.2    # Weight for log-linear method
-MIRNA_SIGMOID_K = 0.5        # Sigmoid steepness
-MIRNA_SIGMOID_THRESHOLD = 3.0  # CRP threshold for sigmoid (mg/L)
+# Neutrophil-to-Lymphocyte Ratio (NLR) from CBC
+# NLR = LBDNENO (neutrophil count) / LBDLYMNO (lymphocyte count)
+NLR_NORMAL_THRESHOLD = 3.0    # Above this: elevated immune activation
+NLR_HIGH_THRESHOLD = 6.0      # Above this: high inflammation
 
 # Nutritional Stress Index
 NSI_SCALE_MIN = 0

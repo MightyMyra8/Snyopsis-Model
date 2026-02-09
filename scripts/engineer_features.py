@@ -3,7 +3,7 @@ Feature Engineering Master Script
 
 Orchestrates all feature engineering steps:
 1. Clinical features (HOMA-IR)
-2. Biological features (synthetic miRNA-155)
+2. Biological features (NLR from CBC, CRP categorization)
 3. Nutritional features (NSI)
 4. Physical activity features
 
@@ -29,7 +29,6 @@ from src.features.interactions import create_interaction_features
 def engineer_all_features(
     input_file: Path,
     output_file: Path,
-    mirna_method: str = "log_linear"
 ) -> pd.DataFrame:
     """
     Run complete feature engineering pipeline.
@@ -37,7 +36,6 @@ def engineer_all_features(
     Args:
         input_file: Path to input CSV (multi_cycle_pediatric.csv)
         output_file: Path to output CSV
-        mirna_method: Method for synthetic miRNA calculation
 
     Returns:
         DataFrame with all engineered features
@@ -57,8 +55,8 @@ def engineer_all_features(
     # 1. Clinical Features
     df = calculate_all_clinical_features(df)
 
-    # 2. Biological Features
-    df = calculate_all_biological_features(df, mirna_method=mirna_method)
+    # 2. Biological Features (NLR from CBC + CRP categorization)
+    df = calculate_all_biological_features(df)
 
     # 3. Nutritional Features
     df = calculate_all_nutritional_features(df)
@@ -82,7 +80,7 @@ def engineer_all_features(
     key_features = [
         'HOMA_IR',
         'HOMA_IR_category',
-        'synthetic_mirna155',
+        'nlr',
         'inflammatory_index',
         'nutritional_stress_index',
         'nsi_category',
@@ -185,7 +183,6 @@ def main():
     df = engineer_all_features(
         input_file=input_file,
         output_file=output_file,
-        mirna_method="log_linear"
     )
 
     # Create interaction features for model improvement
@@ -238,7 +235,7 @@ def main():
         'HOMA_IR',
         'HOMA_B',           # NEW: Beta-cell function (secondary target)
         'HOMA_IR_category',
-        'synthetic_mirna155',
+        'nlr',              # Neutrophil-to-Lymphocyte Ratio from CBC
         'inflammatory_index',
         'nutritional_stress_index',
         'nsi_category',

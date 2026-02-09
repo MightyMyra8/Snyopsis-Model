@@ -6,21 +6,21 @@ features:
   - DR1TSUGR
   - DR1TFIBE
   - LBXHSCRP
-  - synthetic_mirna155
+  - nlr
   - RIDAGEYR
   - RIAGENDR
   - sugar_inactivity_interaction
   - sugar_crp_interaction
   - crp_squared
-n_train: 615
-n_val: 132
+n_train: 613
+n_val: 131
 n_test: 132
-val_r2: -0.04972887560156458
-val_rmse: 3.922302618113815
-test_r2: 0.15136697299021507
-test_rmse: 3.395286625330586
-test_sensitivity: 0.7719298245614035
-test_specificity: 0.38666666666666666
-early_detection_rate: 0.75
-tier1_importance: 0.3030878610029875
-tier2_importance: 0.2781941045632712
+val_r2: 0.08417948589299373
+val_rmse: 4.430205310138164
+test_r2: 0.09353150028227009
+test_rmse: 3.386700989057415
+test_sensitivity: 0.8070175438596491
+test_specificity: 0.3333333333333333
+early_detection_rate: 0.7333333333333333
+tier1_importance: 0.2889914292154246
+tier2_importance: 0.27016674540361657

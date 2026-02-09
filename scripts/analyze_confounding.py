@@ -69,7 +69,7 @@ def correlation_analysis(df):
 
     inflammation_features = [
         'LBXHSCRP',
-        'synthetic_mirna155'
+        'nlr'
     ]
 
     # Calculate correlations

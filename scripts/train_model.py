@@ -98,9 +98,9 @@ def main():
     # Additional features (improve model performance)
     additional_features = []
 
-    # Add synthetic miRNA if available
-    if 'synthetic_mirna155' in df.columns:
-        additional_features.append('synthetic_mirna155')  # Tier 2 - Mediator
+    # Add NLR (Neutrophil-to-Lymphocyte Ratio) if available
+    if 'nlr' in df.columns:
+        additional_features.append('nlr')  # Tier 2 - Immune activation marker
 
     # Add age, gender if available
     if 'RIDAGEYR' in df.columns:
@@ -262,7 +262,7 @@ def main():
 
     # Verify three-tier cascade hypothesis
     tier1_features = ['comprehensive_inactivity_score', 'DR1TSUGR', 'DR1TFIBE']
-    tier2_features = ['LBXHSCRP', 'synthetic_mirna155']
+    tier2_features = ['LBXHSCRP', 'nlr']
 
     tier1_importance = feature_importance[
         feature_importance['feature'].isin(tier1_features)

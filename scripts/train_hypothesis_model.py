@@ -45,7 +45,7 @@ def main():
     print("=" * 70)
     print("\nTesting Three-Tier Cascade WITHOUT Metabolic Confounders:")
     print("  Input:    Physical activity + Diet (sugar, fiber)")
-    print("  Mediator: Inflammation (CRP, miRNA-155)")
+    print("  Mediator: Inflammation (CRP, NLR)")
     print("  Output:   Insulin resistance (HOMA-IR)")
     print("\nEXCLUDED: BMI, waist, HbA1c, blood pressure")
     print("GOAL: Show DIRECT lifestyle effects on insulin resistance")
@@ -83,8 +83,8 @@ def main():
 
     # Tier 2: Biological mediators
     tier2_features = [
-        'LBXHSCRP',                        # CRP inflammation
-        'synthetic_mirna155',              # miRNA-155 proxy
+        'LBXHSCRP',                        # CRP inflammation (protein-based)
+        'nlr',                             # Neutrophil-to-Lymphocyte Ratio (cell-based)
     ]
 
     # Confounders (age, gender)
