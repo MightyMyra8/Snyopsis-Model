@@ -1,5 +1,5 @@
 """
-The Pediatric Sentinel - Interactive Diabetes Risk Calculator
+BetaSense - Interactive Diabetes Risk Calculator
 
 A Streamlit web application for predicting Type 2 Diabetes risk in children
 based on lifestyle factors (physical activity, diet) and biomarkers.
@@ -18,8 +18,11 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+import json
 from pathlib import Path
 import sys
+from stmol import showmol
+import py3Dmol
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -29,7 +32,7 @@ from src.models.composite_risk import CompositeDiabetesRisk
 
 # Page configuration
 st.set_page_config(
-    page_title="The Pediatric Sentinel",
+    page_title="BetaSense",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -180,7 +183,7 @@ def main():
     """Main Streamlit application."""
 
     # Header
-    st.markdown('<p class="main-header">🏥 The Pediatric Sentinel</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-header">🏥 BetaSense</p>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">AI-Powered Diabetes Risk Assessment for Children & Teens</p>', unsafe_allow_html=True)
 
     # Load models
@@ -194,7 +197,7 @@ def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.radio(
         "Choose a page:",
-        ["🩺 Risk Calculator", "📊 Model Insights", "🔬 About the Science"]
+        ["🩺 Risk Calculator", "🧬 Protein Structure", "📊 Model Insights", "🔬 About the Science"]
     )
 
     # =========================================================================
@@ -517,7 +520,128 @@ def main():
                 st.write("Please check your inputs and try again.")
 
     # =========================================================================
-    # PAGE 2: MODEL INSIGHTS
+    # PAGE 2: PROTEIN STRUCTURE (AlphaFold3)
+    # =========================================================================
+    elif page == "🧬 Protein Structure":
+        st.title("🧬 AlphaFold3 Protein Structure")
+        st.write("Interactive 3D view of the **Insulin Receptor + miRNA complex** predicted by AlphaFold3.")
+
+        st.markdown("---")
+
+        # Load CIF structure
+        project_root = Path(__file__).parent.parent
+        cif_path = project_root / "data" / "alphafold" / "fold_betasense_v1_model_0.cif"
+
+        if not cif_path.exists():
+            st.error("AlphaFold3 structure file not found. Please ensure data/alphafold/ contains the model CIF file.")
+            st.stop()
+
+        cif_data = cif_path.read_text()
+
+        # Visualization controls
+        col1, col2 = st.columns([1, 3])
+
+        with col1:
+            st.subheader("Display Options")
+
+            style = st.selectbox("Rendering Style", ["cartoon", "stick", "sphere", "line"], index=0)
+
+            color_scheme = st.selectbox("Color By", ["Chain", "Spectrum (Rainbow)", "Confidence (B-factor)"], index=0)
+
+            bg_color = st.color_picker("Background Color", "#ffffff")
+
+            spin = st.checkbox("Spin Animation", value=False)
+
+            opacity = st.slider("Opacity", 0.5, 1.0, 1.0, 0.1)
+
+            show_surface = st.checkbox("Show Surface", value=False)
+
+        with col2:
+            # Build 3D viewer
+            viewer = py3Dmol.view(width=700, height=500)
+            viewer.addModel(cif_data, "cif")
+
+            # Apply style
+            style_dict = {}
+            if style == "cartoon":
+                style_dict = {"cartoon": {"opacity": opacity}}
+            elif style == "stick":
+                style_dict = {"stick": {"radius": 0.15, "opacity": opacity}}
+            elif style == "sphere":
+                style_dict = {"sphere": {"scale": 0.3, "opacity": opacity}}
+            elif style == "line":
+                style_dict = {"line": {"opacity": opacity}}
+
+            # Apply coloring
+            if color_scheme == "Chain":
+                viewer.setStyle({"chain": "A"}, {style: {"color": "#1f77b4", "opacity": opacity}} if style != "cartoon" else {"cartoon": {"color": "#1f77b4", "opacity": opacity}})
+                viewer.setStyle({"chain": "B"}, {style: {"color": "#ff7f0e", "opacity": opacity}} if style != "cartoon" else {"cartoon": {"color": "#ff7f0e", "opacity": opacity}})
+                viewer.setStyle({"chain": "C"}, {style: {"color": "#2ca02c", "opacity": opacity}} if style != "cartoon" else {"cartoon": {"color": "#2ca02c", "opacity": opacity}})
+            elif color_scheme == "Spectrum (Rainbow)":
+                viewer.setStyle({}, {style: {"colorscheme": "spectral", "opacity": opacity}} if style != "cartoon" else {"cartoon": {"color": "spectrum", "opacity": opacity}})
+            else:  # Confidence / B-factor
+                viewer.setStyle({}, {style: {"colorscheme": {"prop": "b", "gradient": "roygb", "min": 0, "max": 100}, "opacity": opacity}} if style != "cartoon" else {"cartoon": {"colorscheme": {"prop": "b", "gradient": "roygb", "min": 0, "max": 100}, "opacity": opacity}})
+
+            if show_surface:
+                viewer.addSurface(py3Dmol.VDW, {"opacity": 0.5, "color": "white"})
+
+            viewer.setBackgroundColor(bg_color)
+            viewer.zoomTo()
+
+            if spin:
+                viewer.spin(True)
+
+            showmol(viewer, height=500, width=700)
+
+        st.markdown("---")
+
+        # Confidence scores
+        st.subheader("📊 Model Confidence Scores")
+
+        conf_path = project_root / "data" / "alphafold" / "fold_betasense_v1_summary_confidences_0.json"
+        if conf_path.exists():
+            with open(conf_path) as f:
+                conf = json.load(f)
+
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("pTM Score", f"{conf['ptm']:.2f}", help="Predicted TM-score (overall fold confidence)")
+            with col2:
+                st.metric("ipTM Score", f"{conf['iptm']:.2f}", help="Interface predicted TM-score (interaction confidence)")
+            with col3:
+                st.metric("Ranking Score", f"{conf['ranking_score']:.2f}", help="Overall model ranking score")
+            with col4:
+                st.metric("Fraction Disordered", f"{conf['fraction_disordered']:.0%}", help="Fraction of residues predicted as disordered")
+
+            st.markdown("---")
+
+            # Chain details
+            st.subheader("🔗 Chain Details")
+            chain_labels = ["Chain A: Insulin Receptor", "Chain B: miRNA-155", "Chain C: IGF1R Fragment"]
+            chain_data = pd.DataFrame({
+                "Chain": chain_labels,
+                "pTM (Fold Confidence)": conf["chain_ptm"],
+                "ipTM (Interface Confidence)": conf["chain_iptm"]
+            })
+            st.dataframe(chain_data, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+
+        st.subheader("🔬 Why This Structure?")
+        st.write("""
+        This AlphaFold3 prediction models the interaction between the **insulin receptor**
+        and **miRNA-155**, which plays a role in insulin signaling and inflammation.
+
+        - **Chain A (Blue):** Insulin Receptor — the protein that binds insulin and triggers glucose uptake
+        - **Chain B (Orange):** miRNA-155 — a small RNA involved in inflammatory regulation
+        - **Chain C (Green):** IGF1R fragment — insulin-like growth factor 1 receptor
+
+        Understanding how these molecules interact helps explain the biological mechanisms
+        behind insulin resistance that BetaSense aims to detect early.
+        """)
+
+    # =========================================================================
+    # PAGE 3: MODEL INSIGHTS
     # =========================================================================
     elif page == "📊 Model Insights":
         st.title("Model Performance & Insights")
@@ -570,7 +694,7 @@ def main():
     # PAGE 3: ABOUT THE SCIENCE
     # =========================================================================
     else:  # About the Science
-        st.title("🔬 The Science Behind The Pediatric Sentinel")
+        st.title("🔬 The Science Behind BetaSense")
 
         st.markdown("---")
 
@@ -649,7 +773,7 @@ def main():
 
     # Footer
     st.markdown("---")
-    st.caption("Built with ❤️ for science fair | Powered by Machine Learning & SHAP")
+    st.caption("BetaSense | Built with ❤️ for science fair | Powered by Machine Learning & SHAP")
 
 
 if __name__ == "__main__":
