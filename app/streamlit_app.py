@@ -42,17 +42,19 @@ st.set_page_config(
 st.markdown("""
 <style>
     .main-header {
-        font-size: 3rem;
-        font-weight: bold;
-        color: #1f77b4;
-        text-align: center;
-        margin-bottom: 1rem;
+        font-size: 4rem !important;
+        font-weight: 900 !important;
+        color: #1f77b4 !important;
+        text-align: center !important;
+        margin-bottom: 0.5rem !important;
+        letter-spacing: 3px !important;
+        line-height: 1.2 !important;
     }
     .sub-header {
-        font-size: 1.5rem;
-        color: #666;
-        text-align: center;
-        margin-bottom: 2rem;
+        font-size: 1.2rem !important;
+        color: #666 !important;
+        text-align: center !important;
+        margin-bottom: 2rem !important;
     }
     .risk-box {
         padding: 20px;
