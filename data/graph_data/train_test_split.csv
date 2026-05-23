@@ -1,0 +1,7 @@
+model,split,n_samples,percentage
+Main (RF & XGBoost),Train,578,70.0
+Main (RF & XGBoost),Validation,124,15.0
+Main (RF & XGBoost),Test,124,15.0
+Hypothesis,Train,613,70.0
+Hypothesis,Validation,131,15.0
+Hypothesis,Test,132,15.0

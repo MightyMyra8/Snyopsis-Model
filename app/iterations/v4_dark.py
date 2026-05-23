@@ -14,15 +14,7 @@ Usage:
     streamlit run app/streamlit_app.py
 """
 
-import base64
-import datetime
-import io
-import math
-import struct
-import wave
-
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import joblib
@@ -31,127 +23,16 @@ from pathlib import Path
 import sys
 from stmol import showmol
 import py3Dmol
-from streamlit_autorefresh import st_autorefresh
-
-
-def _build_chime_wav() -> bytes:
-    """Synthesize a short two-tone email-style chime WAV in-memory."""
-    sample_rate = 22050
-    samples: list[float] = []
-
-    def add_tone(freq_hz: float, duration_s: float, amplitude: float = 0.35) -> None:
-        n = int(sample_rate * duration_s)
-        for i in range(n):
-            t = i / sample_rate
-            envelope = math.exp(-3.5 * t)  # quick decay, bell-like
-            samples.append(amplitude * envelope * math.sin(2 * math.pi * freq_hz * t))
-
-    add_tone(880.0, 0.18)
-    samples.extend([0.0] * int(sample_rate * 0.04))  # short gap
-    add_tone(1320.0, 0.32)
-
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(sample_rate)
-        for s in samples:
-            clamped = max(-1.0, min(1.0, s))
-            w.writeframes(struct.pack("<h", int(clamped * 32767)))
-    return buf.getvalue()
-
-
-CHIME_WAV_BYTES = _build_chime_wav()
-CHIME_WAV_B64 = base64.b64encode(CHIME_WAV_BYTES).decode("ascii")
-
-
-def _build_denied_wav() -> bytes:
-    """Synthesize a short two-tone descending 'denied' chime."""
-    sample_rate = 22050
-    samples: list[float] = []
-
-    def add_tone(freq_hz: float, duration_s: float, amplitude: float = 0.4) -> None:
-        n = int(sample_rate * duration_s)
-        for i in range(n):
-            t = i / sample_rate
-            envelope = math.exp(-2.0 * t)
-            samples.append(amplitude * envelope * math.sin(2 * math.pi * freq_hz * t))
-
-    add_tone(440.0, 0.20)                              # A4
-    samples.extend([0.0] * int(sample_rate * 0.04))    # short gap
-    add_tone(220.0, 0.50)                              # A3 — drop an octave, longer = "denied"
-
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(sample_rate)
-        for s in samples:
-            clamped = max(-1.0, min(1.0, s))
-            w.writeframes(struct.pack("<h", int(clamped * 32767)))
-    return buf.getvalue()
-
-
-DENIED_WAV_BYTES = _build_denied_wav()
-DENIED_WAV_B64 = base64.b64encode(DENIED_WAV_BYTES).decode("ascii")
-
-
-def _play_persistent_audio(element_id: str, b64: str) -> None:
-    """Inject (or re-trigger) a persistent <audio> in the parent page."""
-    components.html(
-        f"""
-        <script>
-        (function() {{
-            try {{
-                const doc = window.parent ? window.parent.document : document;
-                let a = doc.getElementById('{element_id}');
-                if (!a) {{
-                    a = doc.createElement('audio');
-                    a.id = '{element_id}';
-                    a.src = 'data:audio/wav;base64,{b64}';
-                    a.style.display = 'none';
-                    a.preload = 'auto';
-                    a.volume = 1.0;
-                    doc.body.appendChild(a);
-                }}
-                a.currentTime = 0;
-                a.play().catch(function(e) {{ console.warn('audio blocked:', e); }});
-            }} catch (e) {{ /* ignore */ }}
-        }})();
-        </script>
-        """,
-        height=0,
-    )
-
-
-def play_notification_chime() -> None:
-    """Success chime — short two-tone bell."""
-    _play_persistent_audio("betasense-chime-audio", CHIME_WAV_B64)
-
-
-def play_denied_chime() -> None:
-    """Failure chime — descending two-tone 'denied'."""
-    _play_persistent_audio("betasense-denied-audio", DENIED_WAV_B64)
 
 # Add src to path
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
 # Import composite risk calculator
 from src.models.composite_risk import CompositeDiabetesRisk
-from app.utils import microbit
-
-
-@st.cache_resource
-def get_microbit_listener() -> microbit.MicrobitListener:
-    """Process-wide singleton that survives Streamlit hot-reloads."""
-    return microbit.MicrobitListener()
-
-
-listener = get_microbit_listener()
 
 # Page configuration
 st.set_page_config(
-    page_title="BetaSense",
+    page_title="BetaSense v4 - AlphaFold3",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -202,7 +83,7 @@ st.markdown("""
 @st.cache_resource
 def load_models():
     """Load trained models."""
-    project_root = Path(__file__).parent.parent
+    project_root = Path(__file__).parent.parent.parent
 
     # Load HOMA-IR prediction model (full model with BMI)
     homa_ir_model_path = project_root / "models" / "final" / "pediatric_sentinel_model.pkl"
@@ -305,7 +186,7 @@ def main():
 
     # Header
     st.markdown('<p class="main-header">🏥 BetaSense</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">AI-Powered Diabetes Risk Assessment for Children & Teens</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">AI-Powered Diabetes Risk Assessment for Children & Teens | with AlphaFold3 Protein Viewer</p>', unsafe_allow_html=True)
 
     # Load models
     try:
@@ -321,71 +202,12 @@ def main():
         ["🩺 Risk Calculator", "🧬 Protein Structure", "📊 Model Insights", "🔬 About the Science"]
     )
 
-    # Sidebar: micro:bit scanner status
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("📡 micro:bit Scanner")
-    mb = listener.snapshot()
-    if mb["connected"]:
-        st.sidebar.success(f"Connected on {mb['port']}")
-    else:
-        st.sidebar.warning(mb["error"] or "Searching for micro:bit…")
-    if mb["last_line"]:
-        st.sidebar.caption(f"Last line: `{mb['last_line']}`")
-    def _apply_scanned_sample(scan_id: int) -> None:
-        """Store the sample dict; widgets below read from it and remount via versioned keys."""
-        sample = microbit.generate_sample(seed=scan_id)
-        st.session_state["scan_sample"] = sample
-        st.session_state["microbit_sample_name"] = f"Myra's Blood Sample #{scan_id}"
-        st.session_state["microbit_auto_predict"] = True
-        st.session_state["microbit_last_scan"] = scan_id
-
-    if st.sidebar.button("Simulate scan", help="Trigger a fake SCAN COMPLETE for demos without the device"):
-        listener.simulate_scan()
-        _apply_scanned_sample(listener.snapshot()["scan_count"])
-        st.toast(f"📡 {st.session_state['microbit_sample_name']} loaded", icon="🩸")
-        play_notification_chime()
-        # NOTE: no st.rerun() here — calling it would abort the current run and
-        # discard the chime iframe before it can mount in the browser. Letting
-        # the script finish naturally is what lets the chime and the updated
-        # widgets both render.
-
-    # Poll the micro:bit listener ~2x per second from EVERY page so REAL
-    # SCAN COMPLETE events from the device are caught without manual refresh.
-    st_autorefresh(interval=500, key="microbit_poll")
-
-    _snap = listener.snapshot()
-    current_scan_count = _snap.get("scan_count", 0)
-    current_failed_count = _snap.get("failed_scan_count", 0)
-    if "microbit_last_scan" not in st.session_state:
-        st.session_state["microbit_last_scan"] = current_scan_count
-    if "microbit_last_failed" not in st.session_state:
-        st.session_state["microbit_last_failed"] = current_failed_count
-    if current_scan_count != st.session_state["microbit_last_scan"]:
-        _apply_scanned_sample(current_scan_count)
-        st.toast(f"📡 {st.session_state['microbit_sample_name']} loaded", icon="🩸")
-        play_notification_chime()
-    if current_failed_count != st.session_state["microbit_last_failed"]:
-        st.session_state["microbit_last_failed"] = current_failed_count
-        st.toast("SCAN DENIED — strip color not recognized as blood sample", icon="❌")
-        play_denied_chime()
-
     # =========================================================================
     # PAGE 1: RISK CALCULATOR
     # =========================================================================
     if page == "🩺 Risk Calculator":
-        _sample_name = st.session_state.get("microbit_sample_name")
-        _has_sample = bool(_sample_name)
-        if _has_sample:
-            st.title(f"🩸 {_sample_name}")
-        else:
-            st.title("Diabetes Risk Calculator")
-            st.write("Enter your information below to calculate your Type 2 Diabetes risk.")
-
-        # Versioned widget keys: each scan bumps `_v`, forcing every widget to
-        # remount with the new `value=` from `scan_sample`. This is the only
-        # pattern that reliably overrides Streamlit's widget defaults from code.
-        v = st.session_state.get("microbit_last_scan", 0)
-        s = st.session_state.get("scan_sample", {})
+        st.title("Diabetes Risk Calculator")
+        st.write("Enter your information below to calculate your Type 2 Diabetes risk.")
 
         st.markdown("---")
 
@@ -395,32 +217,28 @@ def main():
         with col1:
             st.subheader("📋 Lifestyle Inputs")
 
+            # Physical activity
             st.write("**Physical Activity**")
-            activity_minutes = st.number_input(
+            activity_minutes = st.slider(
                 "Minutes of activity per week",
-                min_value=0, max_value=420,
-                value=int(s.get("activity_minutes", 150)),
-                step=10,
-                key=f"form_activity_minutes_v{v}",
+                0, 420, 150,
                 help="Total minutes of moderate-to-vigorous physical activity per week (walking, sports, etc.)"
             )
 
+            # Convert to inactivity score (0-100, where 100 = completely inactive)
             inactivity_score = 100 - (min(activity_minutes, 420) / 420 * 100)
 
+            # Diet
             st.write("**Diet**")
             sugar_intake = st.number_input(
                 "Sugar intake (grams/day)",
-                min_value=0.0, max_value=300.0,
-                value=float(s.get("sugar_intake", 50.0)),
-                key=f"form_sugar_intake_v{v}",
+                0.0, 300.0, 50.0,
                 help="Total added sugars consumed daily (from soda, candy, desserts, etc.)"
             )
 
             fiber_intake = st.number_input(
                 "Fiber intake (grams/day)",
-                min_value=0.0, max_value=50.0,
-                value=float(s.get("fiber_intake", 15.0)),
-                key=f"form_fiber_intake_v{v}",
+                0.0, 50.0, 15.0,
                 help="Dietary fiber from whole grains, fruits, vegetables, beans"
             )
 
@@ -429,17 +247,13 @@ def main():
 
             crp_level = st.number_input(
                 "CRP Level (mg/L)",
-                min_value=0.0, max_value=20.0,
-                value=float(s.get("crp_level", 1.0)),
-                key=f"form_crp_level_v{v}",
+                0.0, 20.0, 1.0,
                 help="High-sensitivity C-Reactive Protein from blood test (inflammation marker)"
             )
 
             nlr_value = st.number_input(
                 "NLR (Neutrophil-to-Lymphocyte Ratio)",
-                min_value=0.1, max_value=15.0,
-                value=float(s.get("nlr_value", 1.8)),
-                key=f"form_nlr_value_v{v}",
+                0.1, 15.0, 1.8,
                 help="From CBC blood test: neutrophil count / lymphocyte count (immune activation marker)"
             )
 
@@ -447,83 +261,22 @@ def main():
 
             st.subheader("👤 Optional Information")
 
-            age = st.number_input("Age", min_value=12, max_value=19,
-                value=int(s.get("age", 15)),
-                step=1,
-                key=f"form_age_v{v}", help="Age in years (12-19)")
-            gender = st.selectbox("Gender", ["Male", "Female"],
-                index=["Male", "Female"].index(s.get("gender", "Male")),
-                key=f"form_gender_v{v}")
+            age = st.slider("Age", 12, 19, 15, help="Age in years (12-19)")
+            gender = st.selectbox("Gender", ["Male", "Female"])
 
+            # Advanced options
             with st.expander("Advanced: Additional Biomarkers"):
-                bmi = st.number_input("BMI (optional)", min_value=10.0, max_value=50.0,
-                    value=float(s.get("bmi", 22.0)), key=f"form_bmi_v{v}")
-                waist = st.number_input("Waist circumference (cm, optional)", min_value=40.0, max_value=150.0,
-                    value=float(s.get("waist", 75.0)), key=f"form_waist_v{v}")
-                hba1c = st.number_input("HbA1c - % (optional)", min_value=4.0, max_value=10.0,
-                    value=float(s.get("hba1c", 5.3)), key=f"form_hba1c_v{v}", help="3-month average blood sugar")
-                systolic_bp = st.number_input("Systolic BP (optional)", min_value=80.0, max_value=180.0,
-                    value=float(s.get("systolic_bp", 112.0)), key=f"form_systolic_bp_v{v}", help="Top blood pressure number")
-                diastolic_bp = st.number_input("Diastolic BP (optional)", min_value=40.0, max_value=120.0,
-                    value=float(s.get("diastolic_bp", 65.0)), key=f"form_diastolic_bp_v{v}", help="Bottom blood pressure number")
-                carb_percent = st.number_input("Carbohydrate % of diet (optional)", min_value=0.0, max_value=100.0,
-                    value=float(s.get("carb_percent", 52.0)), key=f"form_carb_percent_v{v}", help="Percentage of calories from carbs")
+                bmi = st.number_input("BMI (optional)", 10.0, 50.0, 22.0)
+                waist = st.number_input("Waist circumference (cm, optional)", 40.0, 150.0, 75.0)
+                hba1c = st.number_input("HbA1c - % (optional)", 4.0, 10.0, 5.3, help="3-month average blood sugar, default: 5.3% (normal)")
+                systolic_bp = st.number_input("Systolic BP (optional)", 80.0, 180.0, 112.0, help="Top blood pressure number, default: 112 mmHg")
+                diastolic_bp = st.number_input("Diastolic BP (optional)", 40.0, 120.0, 65.0, help="Bottom blood pressure number, default: 65 mmHg")
+                carb_percent = st.number_input("Carbohydrate % of diet (optional)", 0.0, 100.0, 52.0, help="Percentage of calories from carbs, default: 52%")
 
         st.markdown("---")
 
-        # Predict trigger (also auto-fires when the micro:bit signals SCAN COMPLETE).
-        # Hide the manual button in report mode (when a sample is loaded).
-        auto_predict = st.session_state.pop("microbit_auto_predict", False)
-        manual_predict = False
-        if not _has_sample:
-            manual_predict = st.button("🔍 Calculate Risk", type="primary", use_container_width=True)
-        if manual_predict:
-            st.session_state["show_prediction"] = True
-            st.session_state["prediction_source"] = "manual"
-        elif auto_predict:
-            st.session_state["show_prediction"] = True
-            st.session_state["prediction_source"] = "scan"
-
-        if st.session_state.get("show_prediction", False):
-            # Lab letterhead — looks like an authentic clinical report
-            _patient = st.session_state.get("microbit_sample_name", "Manual Entry")
-            _scan_id = st.session_state.get("microbit_last_scan", 0)
-            _sample_ref = f"BS-2026-{max(_scan_id, 1):05d}"
-            _report_date = datetime.date.today().strftime("%B %d, %Y")
-            _source_pill = ("📡 micro:bit strip scanner"
-                            if st.session_state.get("prediction_source") == "scan"
-                            else "✍️ Manual entry")
-            st.markdown(
-                f"""
-                <div style="border: 2px solid #1f77b4; padding: 18px 22px; border-radius: 8px;
-                            background: linear-gradient(to right, #f6f9fc, #ffffff);
-                            margin-bottom: 18px; font-family: 'Helvetica Neue', Arial, sans-serif;">
-                  <div style="display: flex; justify-content: space-between; align-items: flex-start;
-                              border-bottom: 1px solid #1f77b4; padding-bottom: 10px; margin-bottom: 10px;">
-                    <div>
-                      <div style="font-size: 1.4em; font-weight: 800; color: #1f77b4; letter-spacing: 1px;">
-                        🏥 BetaSense Diagnostics™
-                      </div>
-                      <div style="margin-top: 4px; color: #666; font-size: 0.88em;">
-                        Pediatric Metabolic Health Laboratory<br>
-                        1247 Research Drive · CLIA Lab #45D-1234567
-                      </div>
-                    </div>
-                    <div style="text-align: right; font-size: 0.85em; color: #444; line-height: 1.6;">
-                      <strong>Sample ID:</strong> {_sample_ref}<br>
-                      <strong>Report Date:</strong> {_report_date}<br>
-                      <strong>Authorized by:</strong> Dr. M. Saxena, MD
-                    </div>
-                  </div>
-                  <div style="font-size: 0.95em; color: #222;">
-                    <strong>Patient:</strong> {_patient} &nbsp;·&nbsp;
-                    <strong>Test Panel:</strong> Pediatric Diabetes Risk (v2.1) &nbsp;·&nbsp;
-                    <strong>Source:</strong> {_source_pill}
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+        # Predict button
+        if st.button("🔍 Calculate Risk", type="primary", use_container_width=True):
 
             # Prepare input data for full model (must match training feature order)
             input_data_full = {
@@ -764,14 +517,6 @@ def main():
                         st.write(f"**Action:** {rec['action']}")
                         st.write(f"**Details:** {rec['details']}")
 
-                # Print Report button (uses the browser's native print dialog)
-                st.markdown("---")
-                if st.button("🖨️ Print Report", use_container_width=True):
-                    components.html(
-                        "<script>window.parent.print();</script>",
-                        height=0,
-                    )
-
             except Exception as e:
                 st.error(f"Error making prediction: {e}")
                 st.write("Please check your inputs and try again.")
@@ -786,7 +531,7 @@ def main():
         st.markdown("---")
 
         # Load CIF structure
-        project_root = Path(__file__).parent.parent
+        project_root = Path(__file__).parent.parent.parent
         cif_path = project_root / "data" / "alphafold" / "fold_betasense_v1_model_0.cif"
 
         if not cif_path.exists():

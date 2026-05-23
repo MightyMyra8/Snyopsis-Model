@@ -1,0 +1,13 @@
+model,category,count
+RandomForest,True Negative,39
+RandomForest,False Positive,31
+RandomForest,False Negative,13
+RandomForest,True Positive,41
+XGBoost,True Negative,45
+XGBoost,False Positive,25
+XGBoost,False Negative,10
+XGBoost,True Positive,44
+Hypothesis,True Negative,25
+Hypothesis,False Positive,46
+Hypothesis,False Negative,11
+Hypothesis,True Positive,50

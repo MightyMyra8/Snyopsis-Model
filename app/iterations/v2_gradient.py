@@ -14,15 +14,7 @@ Usage:
     streamlit run app/streamlit_app.py
 """
 
-import base64
-import datetime
-import io
-import math
-import struct
-import wave
-
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import joblib
@@ -31,127 +23,16 @@ from pathlib import Path
 import sys
 from stmol import showmol
 import py3Dmol
-from streamlit_autorefresh import st_autorefresh
-
-
-def _build_chime_wav() -> bytes:
-    """Synthesize a short two-tone email-style chime WAV in-memory."""
-    sample_rate = 22050
-    samples: list[float] = []
-
-    def add_tone(freq_hz: float, duration_s: float, amplitude: float = 0.35) -> None:
-        n = int(sample_rate * duration_s)
-        for i in range(n):
-            t = i / sample_rate
-            envelope = math.exp(-3.5 * t)  # quick decay, bell-like
-            samples.append(amplitude * envelope * math.sin(2 * math.pi * freq_hz * t))
-
-    add_tone(880.0, 0.18)
-    samples.extend([0.0] * int(sample_rate * 0.04))  # short gap
-    add_tone(1320.0, 0.32)
-
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(sample_rate)
-        for s in samples:
-            clamped = max(-1.0, min(1.0, s))
-            w.writeframes(struct.pack("<h", int(clamped * 32767)))
-    return buf.getvalue()
-
-
-CHIME_WAV_BYTES = _build_chime_wav()
-CHIME_WAV_B64 = base64.b64encode(CHIME_WAV_BYTES).decode("ascii")
-
-
-def _build_denied_wav() -> bytes:
-    """Synthesize a short two-tone descending 'denied' chime."""
-    sample_rate = 22050
-    samples: list[float] = []
-
-    def add_tone(freq_hz: float, duration_s: float, amplitude: float = 0.4) -> None:
-        n = int(sample_rate * duration_s)
-        for i in range(n):
-            t = i / sample_rate
-            envelope = math.exp(-2.0 * t)
-            samples.append(amplitude * envelope * math.sin(2 * math.pi * freq_hz * t))
-
-    add_tone(440.0, 0.20)                              # A4
-    samples.extend([0.0] * int(sample_rate * 0.04))    # short gap
-    add_tone(220.0, 0.50)                              # A3 — drop an octave, longer = "denied"
-
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(sample_rate)
-        for s in samples:
-            clamped = max(-1.0, min(1.0, s))
-            w.writeframes(struct.pack("<h", int(clamped * 32767)))
-    return buf.getvalue()
-
-
-DENIED_WAV_BYTES = _build_denied_wav()
-DENIED_WAV_B64 = base64.b64encode(DENIED_WAV_BYTES).decode("ascii")
-
-
-def _play_persistent_audio(element_id: str, b64: str) -> None:
-    """Inject (or re-trigger) a persistent <audio> in the parent page."""
-    components.html(
-        f"""
-        <script>
-        (function() {{
-            try {{
-                const doc = window.parent ? window.parent.document : document;
-                let a = doc.getElementById('{element_id}');
-                if (!a) {{
-                    a = doc.createElement('audio');
-                    a.id = '{element_id}';
-                    a.src = 'data:audio/wav;base64,{b64}';
-                    a.style.display = 'none';
-                    a.preload = 'auto';
-                    a.volume = 1.0;
-                    doc.body.appendChild(a);
-                }}
-                a.currentTime = 0;
-                a.play().catch(function(e) {{ console.warn('audio blocked:', e); }});
-            }} catch (e) {{ /* ignore */ }}
-        }})();
-        </script>
-        """,
-        height=0,
-    )
-
-
-def play_notification_chime() -> None:
-    """Success chime — short two-tone bell."""
-    _play_persistent_audio("betasense-chime-audio", CHIME_WAV_B64)
-
-
-def play_denied_chime() -> None:
-    """Failure chime — descending two-tone 'denied'."""
-    _play_persistent_audio("betasense-denied-audio", DENIED_WAV_B64)
 
 # Add src to path
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
 # Import composite risk calculator
 from src.models.composite_risk import CompositeDiabetesRisk
-from app.utils import microbit
-
-
-@st.cache_resource
-def get_microbit_listener() -> microbit.MicrobitListener:
-    """Process-wide singleton that survives Streamlit hot-reloads."""
-    return microbit.MicrobitListener()
-
-
-listener = get_microbit_listener()
 
 # Page configuration
 st.set_page_config(
-    page_title="BetaSense",
+    page_title="BetaSense v2 - What-If Analysis",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -202,7 +83,7 @@ st.markdown("""
 @st.cache_resource
 def load_models():
     """Load trained models."""
-    project_root = Path(__file__).parent.parent
+    project_root = Path(__file__).parent.parent.parent
 
     # Load HOMA-IR prediction model (full model with BMI)
     homa_ir_model_path = project_root / "models" / "final" / "pediatric_sentinel_model.pkl"
@@ -305,7 +186,7 @@ def main():
 
     # Header
     st.markdown('<p class="main-header">🏥 BetaSense</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">AI-Powered Diabetes Risk Assessment for Children & Teens</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Predicting Insulin Resistance from Lifestyle & Biomarkers</p>', unsafe_allow_html=True)
 
     # Load models
     try:
@@ -318,74 +199,15 @@ def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.radio(
         "Choose a page:",
-        ["🩺 Risk Calculator", "🧬 Protein Structure", "📊 Model Insights", "🔬 About the Science"]
+        ["🩺 Risk Calculator", "🔮 What-If Analysis", "🔬 About the Science"]
     )
-
-    # Sidebar: micro:bit scanner status
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("📡 micro:bit Scanner")
-    mb = listener.snapshot()
-    if mb["connected"]:
-        st.sidebar.success(f"Connected on {mb['port']}")
-    else:
-        st.sidebar.warning(mb["error"] or "Searching for micro:bit…")
-    if mb["last_line"]:
-        st.sidebar.caption(f"Last line: `{mb['last_line']}`")
-    def _apply_scanned_sample(scan_id: int) -> None:
-        """Store the sample dict; widgets below read from it and remount via versioned keys."""
-        sample = microbit.generate_sample(seed=scan_id)
-        st.session_state["scan_sample"] = sample
-        st.session_state["microbit_sample_name"] = f"Myra's Blood Sample #{scan_id}"
-        st.session_state["microbit_auto_predict"] = True
-        st.session_state["microbit_last_scan"] = scan_id
-
-    if st.sidebar.button("Simulate scan", help="Trigger a fake SCAN COMPLETE for demos without the device"):
-        listener.simulate_scan()
-        _apply_scanned_sample(listener.snapshot()["scan_count"])
-        st.toast(f"📡 {st.session_state['microbit_sample_name']} loaded", icon="🩸")
-        play_notification_chime()
-        # NOTE: no st.rerun() here — calling it would abort the current run and
-        # discard the chime iframe before it can mount in the browser. Letting
-        # the script finish naturally is what lets the chime and the updated
-        # widgets both render.
-
-    # Poll the micro:bit listener ~2x per second from EVERY page so REAL
-    # SCAN COMPLETE events from the device are caught without manual refresh.
-    st_autorefresh(interval=500, key="microbit_poll")
-
-    _snap = listener.snapshot()
-    current_scan_count = _snap.get("scan_count", 0)
-    current_failed_count = _snap.get("failed_scan_count", 0)
-    if "microbit_last_scan" not in st.session_state:
-        st.session_state["microbit_last_scan"] = current_scan_count
-    if "microbit_last_failed" not in st.session_state:
-        st.session_state["microbit_last_failed"] = current_failed_count
-    if current_scan_count != st.session_state["microbit_last_scan"]:
-        _apply_scanned_sample(current_scan_count)
-        st.toast(f"📡 {st.session_state['microbit_sample_name']} loaded", icon="🩸")
-        play_notification_chime()
-    if current_failed_count != st.session_state["microbit_last_failed"]:
-        st.session_state["microbit_last_failed"] = current_failed_count
-        st.toast("SCAN DENIED — strip color not recognized as blood sample", icon="❌")
-        play_denied_chime()
 
     # =========================================================================
     # PAGE 1: RISK CALCULATOR
     # =========================================================================
     if page == "🩺 Risk Calculator":
-        _sample_name = st.session_state.get("microbit_sample_name")
-        _has_sample = bool(_sample_name)
-        if _has_sample:
-            st.title(f"🩸 {_sample_name}")
-        else:
-            st.title("Diabetes Risk Calculator")
-            st.write("Enter your information below to calculate your Type 2 Diabetes risk.")
-
-        # Versioned widget keys: each scan bumps `_v`, forcing every widget to
-        # remount with the new `value=` from `scan_sample`. This is the only
-        # pattern that reliably overrides Streamlit's widget defaults from code.
-        v = st.session_state.get("microbit_last_scan", 0)
-        s = st.session_state.get("scan_sample", {})
+        st.title("Diabetes Risk Calculator")
+        st.write("Enter your information below to calculate your Type 2 Diabetes risk.")
 
         st.markdown("---")
 
@@ -395,32 +217,28 @@ def main():
         with col1:
             st.subheader("📋 Lifestyle Inputs")
 
+            # Physical activity
             st.write("**Physical Activity**")
-            activity_minutes = st.number_input(
+            activity_minutes = st.slider(
                 "Minutes of activity per week",
-                min_value=0, max_value=420,
-                value=int(s.get("activity_minutes", 150)),
-                step=10,
-                key=f"form_activity_minutes_v{v}",
+                0, 420, 150,
                 help="Total minutes of moderate-to-vigorous physical activity per week (walking, sports, etc.)"
             )
 
+            # Convert to inactivity score (0-100, where 100 = completely inactive)
             inactivity_score = 100 - (min(activity_minutes, 420) / 420 * 100)
 
+            # Diet
             st.write("**Diet**")
             sugar_intake = st.number_input(
                 "Sugar intake (grams/day)",
-                min_value=0.0, max_value=300.0,
-                value=float(s.get("sugar_intake", 50.0)),
-                key=f"form_sugar_intake_v{v}",
+                0.0, 300.0, 50.0,
                 help="Total added sugars consumed daily (from soda, candy, desserts, etc.)"
             )
 
             fiber_intake = st.number_input(
                 "Fiber intake (grams/day)",
-                min_value=0.0, max_value=50.0,
-                value=float(s.get("fiber_intake", 15.0)),
-                key=f"form_fiber_intake_v{v}",
+                0.0, 50.0, 15.0,
                 help="Dietary fiber from whole grains, fruits, vegetables, beans"
             )
 
@@ -429,17 +247,13 @@ def main():
 
             crp_level = st.number_input(
                 "CRP Level (mg/L)",
-                min_value=0.0, max_value=20.0,
-                value=float(s.get("crp_level", 1.0)),
-                key=f"form_crp_level_v{v}",
+                0.0, 20.0, 1.0,
                 help="High-sensitivity C-Reactive Protein from blood test (inflammation marker)"
             )
 
             nlr_value = st.number_input(
                 "NLR (Neutrophil-to-Lymphocyte Ratio)",
-                min_value=0.1, max_value=15.0,
-                value=float(s.get("nlr_value", 1.8)),
-                key=f"form_nlr_value_v{v}",
+                0.1, 15.0, 1.8,
                 help="From CBC blood test: neutrophil count / lymphocyte count (immune activation marker)"
             )
 
@@ -447,83 +261,22 @@ def main():
 
             st.subheader("👤 Optional Information")
 
-            age = st.number_input("Age", min_value=12, max_value=19,
-                value=int(s.get("age", 15)),
-                step=1,
-                key=f"form_age_v{v}", help="Age in years (12-19)")
-            gender = st.selectbox("Gender", ["Male", "Female"],
-                index=["Male", "Female"].index(s.get("gender", "Male")),
-                key=f"form_gender_v{v}")
+            age = st.slider("Age", 12, 19, 15, help="Age in years (12-19)")
+            gender = st.selectbox("Gender", ["Male", "Female"])
 
+            # Advanced options
             with st.expander("Advanced: Additional Biomarkers"):
-                bmi = st.number_input("BMI (optional)", min_value=10.0, max_value=50.0,
-                    value=float(s.get("bmi", 22.0)), key=f"form_bmi_v{v}")
-                waist = st.number_input("Waist circumference (cm, optional)", min_value=40.0, max_value=150.0,
-                    value=float(s.get("waist", 75.0)), key=f"form_waist_v{v}")
-                hba1c = st.number_input("HbA1c - % (optional)", min_value=4.0, max_value=10.0,
-                    value=float(s.get("hba1c", 5.3)), key=f"form_hba1c_v{v}", help="3-month average blood sugar")
-                systolic_bp = st.number_input("Systolic BP (optional)", min_value=80.0, max_value=180.0,
-                    value=float(s.get("systolic_bp", 112.0)), key=f"form_systolic_bp_v{v}", help="Top blood pressure number")
-                diastolic_bp = st.number_input("Diastolic BP (optional)", min_value=40.0, max_value=120.0,
-                    value=float(s.get("diastolic_bp", 65.0)), key=f"form_diastolic_bp_v{v}", help="Bottom blood pressure number")
-                carb_percent = st.number_input("Carbohydrate % of diet (optional)", min_value=0.0, max_value=100.0,
-                    value=float(s.get("carb_percent", 52.0)), key=f"form_carb_percent_v{v}", help="Percentage of calories from carbs")
+                bmi = st.number_input("BMI (optional)", 10.0, 50.0, 22.0)
+                waist = st.number_input("Waist circumference (cm, optional)", 40.0, 150.0, 75.0)
+                hba1c = st.number_input("HbA1c - % (optional)", 4.0, 10.0, 5.3, help="3-month average blood sugar, default: 5.3% (normal)")
+                systolic_bp = st.number_input("Systolic BP (optional)", 80.0, 180.0, 112.0, help="Top blood pressure number, default: 112 mmHg")
+                diastolic_bp = st.number_input("Diastolic BP (optional)", 40.0, 120.0, 65.0, help="Bottom blood pressure number, default: 65 mmHg")
+                carb_percent = st.number_input("Carbohydrate % of diet (optional)", 0.0, 100.0, 52.0, help="Percentage of calories from carbs, default: 52%")
 
         st.markdown("---")
 
-        # Predict trigger (also auto-fires when the micro:bit signals SCAN COMPLETE).
-        # Hide the manual button in report mode (when a sample is loaded).
-        auto_predict = st.session_state.pop("microbit_auto_predict", False)
-        manual_predict = False
-        if not _has_sample:
-            manual_predict = st.button("🔍 Calculate Risk", type="primary", use_container_width=True)
-        if manual_predict:
-            st.session_state["show_prediction"] = True
-            st.session_state["prediction_source"] = "manual"
-        elif auto_predict:
-            st.session_state["show_prediction"] = True
-            st.session_state["prediction_source"] = "scan"
-
-        if st.session_state.get("show_prediction", False):
-            # Lab letterhead — looks like an authentic clinical report
-            _patient = st.session_state.get("microbit_sample_name", "Manual Entry")
-            _scan_id = st.session_state.get("microbit_last_scan", 0)
-            _sample_ref = f"BS-2026-{max(_scan_id, 1):05d}"
-            _report_date = datetime.date.today().strftime("%B %d, %Y")
-            _source_pill = ("📡 micro:bit strip scanner"
-                            if st.session_state.get("prediction_source") == "scan"
-                            else "✍️ Manual entry")
-            st.markdown(
-                f"""
-                <div style="border: 2px solid #1f77b4; padding: 18px 22px; border-radius: 8px;
-                            background: linear-gradient(to right, #f6f9fc, #ffffff);
-                            margin-bottom: 18px; font-family: 'Helvetica Neue', Arial, sans-serif;">
-                  <div style="display: flex; justify-content: space-between; align-items: flex-start;
-                              border-bottom: 1px solid #1f77b4; padding-bottom: 10px; margin-bottom: 10px;">
-                    <div>
-                      <div style="font-size: 1.4em; font-weight: 800; color: #1f77b4; letter-spacing: 1px;">
-                        🏥 BetaSense Diagnostics™
-                      </div>
-                      <div style="margin-top: 4px; color: #666; font-size: 0.88em;">
-                        Pediatric Metabolic Health Laboratory<br>
-                        1247 Research Drive · CLIA Lab #45D-1234567
-                      </div>
-                    </div>
-                    <div style="text-align: right; font-size: 0.85em; color: #444; line-height: 1.6;">
-                      <strong>Sample ID:</strong> {_sample_ref}<br>
-                      <strong>Report Date:</strong> {_report_date}<br>
-                      <strong>Authorized by:</strong> Dr. M. Saxena, MD
-                    </div>
-                  </div>
-                  <div style="font-size: 0.95em; color: #222;">
-                    <strong>Patient:</strong> {_patient} &nbsp;·&nbsp;
-                    <strong>Test Panel:</strong> Pediatric Diabetes Risk (v2.1) &nbsp;·&nbsp;
-                    <strong>Source:</strong> {_source_pill}
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+        # Predict button
+        if st.button("🔍 Calculate Risk", type="primary", use_container_width=True):
 
             # Prepare input data for full model (must match training feature order)
             input_data_full = {
@@ -764,138 +517,182 @@ def main():
                         st.write(f"**Action:** {rec['action']}")
                         st.write(f"**Details:** {rec['details']}")
 
-                # Print Report button (uses the browser's native print dialog)
+                # What-If Sensitivity Analysis
                 st.markdown("---")
-                if st.button("🖨️ Print Report", use_container_width=True):
-                    components.html(
-                        "<script>window.parent.print();</script>",
-                        height=0,
-                    )
+                st.subheader("🔮 What-If Sensitivity Analysis")
+                st.write("See how changing one factor affects your predicted insulin resistance.")
+
+                sweep_var = st.selectbox("Choose a variable to explore:", [
+                    "Sugar Intake (g/day)",
+                    "Physical Activity (min/week)",
+                    "CRP Level (mg/L)",
+                    "Fiber Intake (g/day)"
+                ])
+
+                sweep_config = {
+                    "Sugar Intake (g/day)": ("DR1TSUGR", np.linspace(0, 150, 30)),
+                    "Physical Activity (min/week)": ("comprehensive_inactivity_score", np.linspace(0, 100, 30)),
+                    "CRP Level (mg/L)": ("LBXHSCRP", np.linspace(0.1, 15, 30)),
+                    "Fiber Intake (g/day)": ("DR1TFIBE", np.linspace(5, 50, 30))
+                }
+
+                var_name, sweep_range = sweep_config[sweep_var]
+
+                # Run model across the sweep range
+                sweep_results = []
+                for val in sweep_range:
+                    sweep_data = input_data_full.copy()
+                    if sweep_var == "Physical Activity (min/week)":
+                        sweep_data['comprehensive_inactivity_score'] = val
+                        sweep_data['sugar_inactivity_interaction'] = sweep_data['DR1TSUGR'] * val / 100
+                        sweep_data['bmi_inactivity_interaction'] = sweep_data['BMXBMI'] * val / 100
+                    else:
+                        sweep_data[var_name] = val
+                        if var_name == 'DR1TSUGR':
+                            sweep_data['sugar_inactivity_interaction'] = val * sweep_data['comprehensive_inactivity_score'] / 100
+                            sweep_data['sugar_crp_interaction'] = val * sweep_data['LBXHSCRP']
+                        elif var_name == 'LBXHSCRP':
+                            sweep_data['sugar_crp_interaction'] = sweep_data['DR1TSUGR'] * val
+                            sweep_data['crp_bmi_interaction'] = val * sweep_data['BMXBMI']
+                            sweep_data['crp_squared'] = val ** 2
+
+                    sweep_df = pd.DataFrame([sweep_data])[feature_order_homa_ir]
+                    pred = homa_ir_model.predict(sweep_df)[0]
+                    sweep_results.append(pred)
+
+                # Build display x-axis
+                if sweep_var == "Physical Activity (min/week)":
+                    display_x = [420 - (v / 100 * 420) for v in sweep_range]
+                    x_label = "Activity (min/week)"
+                else:
+                    display_x = sweep_range.tolist()
+                    x_label = sweep_var
+
+                import plotly.graph_objects as go_sweep
+                fig_sweep = go_sweep.Figure()
+                fig_sweep.add_trace(go_sweep.Scatter(
+                    x=display_x, y=sweep_results,
+                    mode='lines+markers',
+                    line=dict(color='#1f77b4', width=3),
+                    marker=dict(size=4),
+                    name='Predicted HOMA-IR'
+                ))
+                fig_sweep.add_hline(y=2.5, line_dash="dash", line_color="red",
+                                    annotation_text="Risk Threshold (2.5)")
+                # Mark current value
+                if sweep_var == "Physical Activity (min/week)":
+                    current_x = 420 - (inactivity_score / 100 * 420)
+                elif var_name == 'DR1TSUGR':
+                    current_x = sugar_intake
+                elif var_name == 'LBXHSCRP':
+                    current_x = crp_level
+                else:
+                    current_x = fiber_intake
+                fig_sweep.add_vline(x=current_x, line_dash="dot", line_color="green",
+                                    annotation_text="You are here")
+                fig_sweep.update_layout(
+                    title=f"How {sweep_var} Affects Your Insulin Resistance",
+                    xaxis_title=x_label,
+                    yaxis_title="Predicted HOMA-IR",
+                    height=400,
+                    template="plotly_white"
+                )
+                st.plotly_chart(fig_sweep, use_container_width=True)
+                st.info("This shows your **actual model prediction** across different values — not a simplified estimate.")
 
             except Exception as e:
                 st.error(f"Error making prediction: {e}")
                 st.write("Please check your inputs and try again.")
 
     # =========================================================================
-    # PAGE 2: PROTEIN STRUCTURE (AlphaFold3)
+    # PAGE 2: WHAT-IF ANALYSIS (standalone page)
     # =========================================================================
-    elif page == "🧬 Protein Structure":
-        st.title("🧬 AlphaFold3 Protein Structure")
-        st.write("Interactive 3D view of the **Insulin Receptor + miRNA complex** predicted by AlphaFold3.")
+    elif page == "🔮 What-If Analysis":
+        st.title("🔮 What-If Sensitivity Analysis")
+        st.write("Explore how changing a single lifestyle or biomarker variable affects predicted insulin resistance.")
+        st.write("This tool sweeps one variable across its full range while holding everything else constant, "
+                 "running the trained XGBoost model at each point.")
 
         st.markdown("---")
 
-        # Load CIF structure
-        project_root = Path(__file__).parent.parent
-        cif_path = project_root / "data" / "alphafold" / "fold_betasense_v1_model_0.cif"
-
-        if not cif_path.exists():
-            st.error("AlphaFold3 structure file not found. Please ensure data/alphafold/ contains the model CIF file.")
-            st.stop()
-
-        cif_data = cif_path.read_text()
-
-        # Visualization controls
-        col1, col2 = st.columns([1, 3])
-
-        with col1:
-            st.subheader("Display Options")
-
-            style = st.selectbox("Rendering Style", ["cartoon", "stick", "sphere", "line"], index=0)
-
-            color_scheme = st.selectbox("Color By", ["Chain", "Spectrum (Rainbow)", "Confidence (B-factor)"], index=0)
-
-            bg_color = st.color_picker("Background Color", "#ffffff")
-
-            spin = st.checkbox("Spin Animation", value=False)
-
-            opacity = st.slider("Opacity", 0.5, 1.0, 1.0, 0.1)
-
-            show_surface = st.checkbox("Show Surface", value=False)
-
-        with col2:
-            # Build 3D viewer
-            viewer = py3Dmol.view(width=700, height=500)
-            viewer.addModel(cif_data, "cif")
-
-            # Apply style
-            style_dict = {}
-            if style == "cartoon":
-                style_dict = {"cartoon": {"opacity": opacity}}
-            elif style == "stick":
-                style_dict = {"stick": {"radius": 0.15, "opacity": opacity}}
-            elif style == "sphere":
-                style_dict = {"sphere": {"scale": 0.3, "opacity": opacity}}
-            elif style == "line":
-                style_dict = {"line": {"opacity": opacity}}
-
-            # Apply coloring
-            if color_scheme == "Chain":
-                viewer.setStyle({"chain": "A"}, {style: {"color": "#1f77b4", "opacity": opacity}} if style != "cartoon" else {"cartoon": {"color": "#1f77b4", "opacity": opacity}})
-                viewer.setStyle({"chain": "B"}, {style: {"color": "#ff7f0e", "opacity": opacity}} if style != "cartoon" else {"cartoon": {"color": "#ff7f0e", "opacity": opacity}})
-                viewer.setStyle({"chain": "C"}, {style: {"color": "#2ca02c", "opacity": opacity}} if style != "cartoon" else {"cartoon": {"color": "#2ca02c", "opacity": opacity}})
-            elif color_scheme == "Spectrum (Rainbow)":
-                viewer.setStyle({}, {style: {"colorscheme": "spectral", "opacity": opacity}} if style != "cartoon" else {"cartoon": {"color": "spectrum", "opacity": opacity}})
-            else:  # Confidence / B-factor
-                viewer.setStyle({}, {style: {"colorscheme": {"prop": "b", "gradient": "roygb", "min": 0, "max": 100}, "opacity": opacity}} if style != "cartoon" else {"cartoon": {"colorscheme": {"prop": "b", "gradient": "roygb", "min": 0, "max": 100}, "opacity": opacity}})
-
-            if show_surface:
-                viewer.addSurface(py3Dmol.VDW, {"opacity": 0.5, "color": "white"})
-
-            viewer.setBackgroundColor(bg_color)
-            viewer.zoomTo()
-
-            if spin:
-                viewer.spin(True)
-
-            showmol(viewer, height=500, width=700)
+        # Use default/median values for the sweep
+        sweep_var = st.selectbox("Choose a variable to sweep:", [
+            "Sugar Intake (g/day)",
+            "Physical Activity (min/week)",
+            "CRP Level (mg/L)",
+            "Fiber Intake (g/day)"
+        ])
 
         st.markdown("---")
 
-        # Confidence scores
-        st.subheader("📊 Model Confidence Scores")
+        # Default baseline values
+        baseline = {
+            'comprehensive_inactivity_score': 64.3,
+            'DR1TSUGR': 50.0, 'DR1TFIBE': 15.0, 'LBXHSCRP': 1.0,
+            'BMXBMI': 22.0, 'BMXWAIST': 75.0, 'LBXGH': 5.3,
+            'BPXSY2': 112.0, 'BPXDI2': 65.0, 'carb_percent': 52.0,
+            'nlr': 1.8, 'RIDAGEYR': 15, 'RIAGENDR': 1,
+            'sugar_inactivity_interaction': 50.0 * 64.3 / 100,
+            'bmi_inactivity_interaction': 22.0 * 64.3 / 100,
+            'sugar_crp_interaction': 50.0 * 1.0,
+            'crp_bmi_interaction': 1.0 * 22.0,
+            'bmi_squared': 22.0 ** 2, 'crp_squared': 1.0 ** 2
+        }
 
-        conf_path = project_root / "data" / "alphafold" / "fold_betasense_v1_summary_confidences_0.json"
-        if conf_path.exists():
-            with open(conf_path) as f:
-                conf = json.load(f)
+        sweep_config = {
+            "Sugar Intake (g/day)": ("DR1TSUGR", np.linspace(0, 150, 40)),
+            "Physical Activity (min/week)": ("comprehensive_inactivity_score", np.linspace(0, 100, 40)),
+            "CRP Level (mg/L)": ("LBXHSCRP", np.linspace(0.1, 15, 40)),
+            "Fiber Intake (g/day)": ("DR1TFIBE", np.linspace(5, 50, 40))
+        }
 
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("pTM Score", f"{conf['ptm']:.2f}", help="Predicted TM-score (overall fold confidence)")
-            with col2:
-                st.metric("ipTM Score", f"{conf['iptm']:.2f}", help="Interface predicted TM-score (interaction confidence)")
-            with col3:
-                st.metric("Ranking Score", f"{conf['ranking_score']:.2f}", help="Overall model ranking score")
-            with col4:
-                st.metric("Fraction Disordered", f"{conf['fraction_disordered']:.0%}", help="Fraction of residues predicted as disordered")
+        feature_order = [
+            'comprehensive_inactivity_score', 'DR1TSUGR', 'DR1TFIBE', 'LBXHSCRP',
+            'BMXBMI', 'BMXWAIST', 'LBXGH', 'BPXSY2', 'BPXDI2', 'carb_percent',
+            'nlr', 'RIDAGEYR', 'RIAGENDR',
+            'sugar_inactivity_interaction', 'bmi_inactivity_interaction',
+            'sugar_crp_interaction', 'crp_bmi_interaction', 'bmi_squared', 'crp_squared'
+        ]
 
-            st.markdown("---")
+        var_name, sweep_range = sweep_config[sweep_var]
+        results = []
+        for val in sweep_range:
+            d = baseline.copy()
+            if sweep_var == "Physical Activity (min/week)":
+                d['comprehensive_inactivity_score'] = val
+                d['sugar_inactivity_interaction'] = d['DR1TSUGR'] * val / 100
+                d['bmi_inactivity_interaction'] = d['BMXBMI'] * val / 100
+            else:
+                d[var_name] = val
+                if var_name == 'DR1TSUGR':
+                    d['sugar_inactivity_interaction'] = val * d['comprehensive_inactivity_score'] / 100
+                    d['sugar_crp_interaction'] = val * d['LBXHSCRP']
+                elif var_name == 'LBXHSCRP':
+                    d['sugar_crp_interaction'] = d['DR1TSUGR'] * val
+                    d['crp_bmi_interaction'] = val * d['BMXBMI']
+                    d['crp_squared'] = val ** 2
+            df_sweep = pd.DataFrame([d])[feature_order]
+            results.append(homa_ir_model.predict(df_sweep)[0])
 
-            # Chain details
-            st.subheader("🔗 Chain Details")
-            chain_labels = ["Chain A: Insulin Receptor", "Chain B: miRNA-155", "Chain C: IGF1R Fragment"]
-            chain_data = pd.DataFrame({
-                "Chain": chain_labels,
-                "pTM (Fold Confidence)": conf["chain_ptm"],
-                "ipTM (Interface Confidence)": conf["chain_iptm"]
-            })
-            st.dataframe(chain_data, use_container_width=True, hide_index=True)
+        if sweep_var == "Physical Activity (min/week)":
+            display_x = [420 - (v / 100 * 420) for v in sweep_range]
+            x_label = "Activity (min/week)"
+        else:
+            display_x = sweep_range.tolist()
+            x_label = sweep_var
 
-        st.markdown("---")
+        import plotly.graph_objects as go_page
+        fig = go_page.Figure()
+        fig.add_trace(go_page.Scatter(x=display_x, y=results, mode='lines+markers',
+                                       line=dict(color='#1f77b4', width=3), marker=dict(size=5)))
+        fig.add_hline(y=2.5, line_dash="dash", line_color="red", annotation_text="Risk Threshold (2.5)")
+        fig.update_layout(title=f"How {sweep_var} Affects Predicted HOMA-IR",
+                          xaxis_title=x_label, yaxis_title="Predicted HOMA-IR",
+                          height=500, template="plotly_white")
+        st.plotly_chart(fig, use_container_width=True)
 
-        st.subheader("🔬 Why This Structure?")
-        st.write("""
-        This AlphaFold3 prediction models the interaction between the **insulin receptor**
-        and **miRNA-155**, which plays a role in insulin signaling and inflammation.
-
-        - **Chain A (Blue):** Insulin Receptor — the protein that binds insulin and triggers glucose uptake
-        - **Chain B (Orange):** miRNA-155 — a small RNA involved in inflammatory regulation
-        - **Chain C (Green):** IGF1R fragment — insulin-like growth factor 1 receptor
-
-        Understanding how these molecules interact helps explain the biological mechanisms
-        behind insulin resistance that BetaSense aims to detect early.
-        """)
+        st.info("Each point is a **real model prediction** — not an approximation. "
+                "All other inputs are held at population median values.")
 
     # =========================================================================
     # PAGE 3: MODEL INSIGHTS

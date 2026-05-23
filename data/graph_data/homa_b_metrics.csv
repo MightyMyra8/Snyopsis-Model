@@ -1,0 +1,2 @@
+model_type,target,n_train,n_test,test_r2,test_rmse,test_mae,cv_r2_mean,cv_r2_std
+Random Forest Regressor,HOMA-B (Beta-Cell Function %),560,120,0.28237763371497315,65.16024898767466,47.23915804270162,0.40964421346912594,0.05066670936194564

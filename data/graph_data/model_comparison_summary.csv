@@ -1,0 +1,4 @@
+model,test_r2,roc_auc,sensitivity,specificity,early_detection_rate,n_features,n_train,n_test
+RandomForest,0.199,0.7677,0.742,0.565,0.8,19,578,124
+XGBoost,0.15,0.8056,0.806,0.565,0.833,19,578,124
+Hypothesis,0.094,0.6287,0.807,0.333,0.733,10,613,132

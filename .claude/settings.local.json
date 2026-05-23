@@ -14,7 +14,26 @@
       "Bash(git push:*)",
       "Bash(git config:*)",
       "Bash(findstr:*)",
-      "Bash(venv/Scripts/python.exe:*)"
+      "Bash(venv/Scripts/python.exe:*)",
+      "Bash(timeout 5 tail:*)",
+      "Bash(exit 0)",
+      "Bash(git commit:*)",
+      "Bash(python scripts/train_hypothesis_model.py:*)",
+      "Bash(python:*)",
+      "Bash(./venv/Scripts/python -m streamlit run app/streamlit_app.py)",
+      "Bash(./venv/Scripts/python -m streamlit run app/streamlit_app.py --server.headless true)",
+      "Bash(unzip -l \"C:/Users/Myra Saxena/Downloads/fold_betasense_v1.zip\")",
+      "Bash(mkdir -p \"c:/Users/Myra Saxena/Documents/SourceCode/ScienceFair/data/alphafold\")",
+      "Bash(unzip -o \"C:/Users/Myra Saxena/Downloads/fold_betasense_v1.zip\" \"fold_betasense_v1_model_0.cif\" \"fold_betasense_v1_summary_confidences_*.json\" \"fold_betasense_v1_job_request.json\" -d \"c:/Users/Myra Saxena/Documents/SourceCode/ScienceFair/data/alphafold\")",
+      "Bash(./venv/Scripts/pip install:*)",
+      "Bash(./venv/Scripts/streamlit run:*)",
+      "Bash(taskkill //F //IM streamlit.exe)",
+      "Bash(pkill -f streamlit)",
+      "PowerShell(python -m streamlit run \"c:\\\\Users\\\\Myra Saxena\\\\Documents\\\\SourceCode\\\\ScienceFair\\\\app\\\\streamlit_app.py\" --server.port 8501 --server.headless true)",
+      "Bash(netstat -ano)",
+      "PowerShell(python -m pip install stmol py3Dmol)",
+      "PowerShell($p = \\(Get-NetTCPConnection -LocalPort 8501 -ErrorAction SilentlyContinue\\).OwningProcess; if \\($p\\) { Stop-Process -Id $p -Force; Start-Sleep -Seconds 1 }; \"ok\")",
+      "PowerShell(python -m pip install ipython_genutils)"
     ]
   }
 }

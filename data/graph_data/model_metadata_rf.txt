@@ -1,0 +1,43 @@
+model_type: RandomForestRegressor
+hyperparameter_optimization: GridSearchCV
+optimized_hyperparameters:
+  max_depth: 20
+  max_features: sqrt
+  min_impurity_decrease: 0.01
+  min_samples_leaf: 2
+  min_samples_split: 10
+  n_estimators: 500
+n_features: 19
+features:
+  - comprehensive_inactivity_score
+  - DR1TSUGR
+  - DR1TFIBE
+  - LBXHSCRP
+  - BMXBMI
+  - BMXWAIST
+  - LBXGH
+  - BPXSY2
+  - BPXDI2
+  - carb_percent
+  - nlr
+  - RIDAGEYR
+  - RIAGENDR
+  - sugar_inactivity_interaction
+  - bmi_inactivity_interaction
+  - sugar_crp_interaction
+  - crp_bmi_interaction
+  - bmi_squared
+  - crp_squared
+n_train: 578
+n_val: 124
+n_test: 124
+cv_mean_r2: 0.3160543210363945
+cv_std_r2: 0.13917522886640266
+tuning_best_cv_r2: 0.33258556970775277
+val_r2: 0.3129666709281965
+val_rmse: 1.9901906379763645
+test_r2: 0.1987214440157552
+test_rmse: 3.190077569674
+test_sensitivity: 0.7419354838709677
+test_specificity: 0.5645161290322581
+early_detection_rate: 0.8
