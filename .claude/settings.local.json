@@ -33,7 +33,19 @@
       "Bash(netstat -ano)",
       "PowerShell(python -m pip install stmol py3Dmol)",
       "PowerShell($p = \\(Get-NetTCPConnection -LocalPort 8501 -ErrorAction SilentlyContinue\\).OwningProcess; if \\($p\\) { Stop-Process -Id $p -Force; Start-Sleep -Seconds 1 }; \"ok\")",
-      "PowerShell(python -m pip install ipython_genutils)"
+      "PowerShell(python -m pip install ipython_genutils)",
+      "PowerShell($p = \\(Get-NetTCPConnection -LocalPort 8501 -ErrorAction SilentlyContinue\\).OwningProcess; if \\($p\\) { Stop-Process -Id $p -Force; Start-Sleep -Seconds 2; \"streamlit stopped\" } else { \"no streamlit running\" })",
+      "PowerShell(python \"c:\\\\Users\\\\Myra Saxena\\\\Documents\\\\SourceCode\\\\ScienceFair\\\\scripts\\\\serial_listen.py\")",
+      "Bash(sleep 2 && head -5 \"/c/Users/MYRASA~1/AppData/Local/Temp/claude/c--Users-Myra-Saxena-Documents-SourceCode-ScienceFair/5b01c650-7b5c-4c16-9658-27ea5b553afd/tasks/bq6kbqv74.output\")",
+      "Read(//c/Users/MYRASA~1/AppData/Local/Temp/claude/c--Users-Myra-Saxena-Documents-SourceCode-ScienceFair/5b01c650-7b5c-4c16-9658-27ea5b553afd/tasks/**)",
+      "PowerShell(Get-Process python -ErrorAction SilentlyContinue | Select-Object Id, StartTime | Format-Table; \"---\"; [System.IO.Ports.SerialPort]::GetPortNames\\(\\))",
+      "PowerShell(Stop-Process -Id 12616, 40160 -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(\"killed\")",
+      "PowerShell(Get-Process python -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force }; Start-Sleep -Seconds 1; \"killed all python\")",
+      "PowerShell(Start-Process \"http://localhost:8501\")",
+      "PowerShell($p = \\(Get-NetTCPConnection -LocalPort 8501 -ErrorAction SilentlyContinue\\).OwningProcess; if \\($p\\) { Stop-Process -Id $p -Force; Start-Sleep -Seconds 2 }; python -m streamlit run \"c:\\\\Users\\\\Myra Saxena\\\\Documents\\\\SourceCode\\\\ScienceFair\\\\app\\\\streamlit_app.py\" --server.port 8501 --server.headless true)",
+      "PowerShell(Get-Process python -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force)"
     ]
   }
 }

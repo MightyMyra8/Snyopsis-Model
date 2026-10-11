@@ -1,10 +1,10 @@
-# The Pediatric Sentinel
+# BetaSense
 
 ## A Multi-Variate Algorithmic Model for the Early Prediction of Pancreatic Exhaustion
 
 ### Integrating Bio-Behavioral Metrics with Circulating Immuno-Metabolic Biomarkers
 
----
+---e
 
 ## Table of Contents
 - [Executive Summary](#executive-summary)

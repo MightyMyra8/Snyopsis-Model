@@ -29,9 +29,11 @@ import joblib
 import json
 from pathlib import Path
 import sys
-from stmol import showmol
-import py3Dmol
 from streamlit_autorefresh import st_autorefresh
+
+# NOTE: stmol + py3Dmol are heavy (pull in the entire Jupyter stack). They're
+# lazy-imported inside the Protein Structure page so the rest of the app
+# starts fast.
 
 
 def _build_chime_wav() -> bytes:
@@ -149,10 +151,12 @@ def get_microbit_listener() -> microbit.MicrobitListener:
 
 listener = get_microbit_listener()
 
-# Page configuration
+# Page configuration — use logo2.png as browser tab favicon
+_favicon_path = Path(__file__).parent.parent / "docs" / "logo2.png"
+_favicon = str(_favicon_path) if _favicon_path.exists() else "🏥"
 st.set_page_config(
     page_title="BetaSense",
-    page_icon="🏥",
+    page_icon=_favicon,
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -303,8 +307,35 @@ def get_recommendations(input_data):
 def main():
     """Main Streamlit application."""
 
-    # Header
-    st.markdown('<p class="main-header">🏥 BetaSense</p>', unsafe_allow_html=True)
+    # Header — logo (no words) + name + tagline
+    _logo_path = Path(__file__).parent.parent / "docs" / "logo2.png"
+    if _logo_path.exists():
+        _logo_b64 = base64.b64encode(_logo_path.read_bytes()).decode("ascii")
+        st.markdown(
+            f'''
+            <div style="display:flex; align-items:center; justify-content:center;
+                        gap:20px; margin-bottom:0.25rem;">
+              <img src="data:image/png;base64,{_logo_b64}" style="height:110px;">
+              <p class="main-header" style="margin:0;">BetaSense</p>
+            </div>
+            <p style="text-align:center; margin-top:0; margin-bottom:0.6rem;
+                      font-size:1.4rem; font-weight:700; letter-spacing:2px;
+                      background: linear-gradient(90deg, #ec4899, #8b5cf6, #3b82f6);
+                      -webkit-background-clip: text;
+                      -webkit-text-fill-color: transparent;
+                      background-clip: text;">
+              Stay Healthy, Stay Smart
+            </p>
+            ''',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown('<p class="main-header">🏥 BetaSense</p>', unsafe_allow_html=True)
+        st.markdown(
+            '<p style="text-align:center; font-size:1.4rem; font-weight:700; '
+            'letter-spacing:2px; color:#8b5cf6;">Stay Healthy, Stay Smart</p>',
+            unsafe_allow_html=True,
+        )
     st.markdown('<p class="sub-header">AI-Powered Diabetes Risk Assessment for Children & Teens</p>', unsafe_allow_html=True)
 
     # Load models
@@ -318,7 +349,7 @@ def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.radio(
         "Choose a page:",
-        ["🩺 Risk Calculator", "🧬 Protein Structure", "📊 Model Insights", "🔬 About the Science"]
+        ["🩺 Risk Calculator", "❤️ Heart Pulse", "🧬 Protein Structure", "📊 Model Insights", "🔬 About the Science"]
     )
 
     # Sidebar: micro:bit scanner status
@@ -339,19 +370,24 @@ def main():
         st.session_state["microbit_auto_predict"] = True
         st.session_state["microbit_last_scan"] = scan_id
 
-    if st.sidebar.button("Simulate scan", help="Trigger a fake SCAN COMPLETE for demos without the device"):
-        listener.simulate_scan()
-        _apply_scanned_sample(listener.snapshot()["scan_count"])
-        st.toast(f"📡 {st.session_state['microbit_sample_name']} loaded", icon="🩸")
-        play_notification_chime()
-        # NOTE: no st.rerun() here — calling it would abort the current run and
-        # discard the chime iframe before it can mount in the browser. Letting
-        # the script finish naturally is what lets the chime and the updated
-        # widgets both render.
+    # All simulate buttons use on_click callbacks so the click survives the
+    # 500ms autorefresh race. They just bump the listener; the polling block
+    # below detects the scan_count change and fires the chime + toast + warning.
+    def _sim(shade: str = "") -> None:
+        listener.simulate_scan(shade=shade)
 
-    # Poll the micro:bit listener ~2x per second from EVERY page so REAL
-    # SCAN COMPLETE events from the device are caught without manual refresh.
-    st_autorefresh(interval=500, key="microbit_poll")
+    st.sidebar.button(
+        "Simulate scan",
+        help="Trigger a fake SCAN COMPLETE for demos without the device",
+        on_click=_sim,
+        key="sim_generic",
+    )
+
+    # Poll the micro:bit listener every 2.5 seconds — but ONLY on pages that
+    # need it. On the Heart Pulse page, a fragment handles live updates without
+    # triggering full-page rerun, so we skip the global autorefresh there.
+    if page != "❤️ Heart Pulse":
+        st_autorefresh(interval=2500, key="microbit_poll")
 
     _snap = listener.snapshot()
     current_scan_count = _snap.get("scan_count", 0)
@@ -362,8 +398,50 @@ def main():
         st.session_state["microbit_last_failed"] = current_failed_count
     if current_scan_count != st.session_state["microbit_last_scan"]:
         _apply_scanned_sample(current_scan_count)
-        st.toast(f"📡 {st.session_state['microbit_sample_name']} loaded", icon="🩸")
+        # Capture shade/ratio so the report can warn about it later
+        st.session_state["microbit_last_shade"] = _snap.get("last_shade", "")
+        st.session_state["microbit_last_red_ratio"] = _snap.get("last_red_ratio", 0.0)
+        _shade = st.session_state["microbit_last_shade"]
+        _shade_label = {
+            "dehydrated": "DEHYDRATED",
+            "anemic": "ANEMIC",
+            "poor_control": "POORLY CONTROLLED",
+            "healthy": "HEALTHY",
+        }.get(_shade, "UNCLASSIFIED")
+        st.toast(f"📡 SCAN COMPLETE — {_shade_label} detected", icon="🩸")
+        # Persistent banner — stays visible until next scan (unlike toast which fades)
+        st.session_state["microbit_banner"] = _shade_label
         play_notification_chime()
+        # Map physical shade → clinical narrative shown to the user
+        _shade_messages = {
+            "dehydrated": (
+                "🟥",
+                "DEHYDRATED — pH 2.5 strip (magenta/wine). "
+                "T2D link: high glucose → osmotic diuresis (frequent urination) "
+                "→ concentrated blood. Suggest hydration check and HbA1c review.",
+            ),
+            "anemic": (
+                "🩷",
+                "ANEMIC — pH 3.9 strip (light orange). "
+                "T2D link: diabetic kidney disease reduces erythropoietin → low "
+                "red cell count → paler blood. Suggest CBC + kidney panel.",
+            ),
+            "poor_control": (
+                "🟧",
+                "POORLY CONTROLLED — pH 3.0 strip (deep burgundy). "
+                "Consistent with diabetic dyslipidemia or sustained hyperglycemia. "
+                "Suggest lipid panel and fasting glucose / HbA1c.",
+            ),
+            "healthy": (
+                "✅",
+                "HEALTHY — pH 3.6 strip (orange-red). "
+                "Sample appears within healthy reference range. "
+                "Continue with risk score below.",
+            ),
+        }
+        if _shade in _shade_messages:
+            _icon, _msg = _shade_messages[_shade]
+            st.toast(_msg, icon=_icon)
     if current_failed_count != st.session_state["microbit_last_failed"]:
         st.session_state["microbit_last_failed"] = current_failed_count
         st.toast("SCAN DENIED — strip color not recognized as blood sample", icon="❌")
@@ -386,6 +464,55 @@ def main():
         # pattern that reliably overrides Streamlit's widget defaults from code.
         v = st.session_state.get("microbit_last_scan", 0)
         s = st.session_state.get("scan_sample", {})
+
+        # Strip-state demo buttons — fire the same flow as a real micro:bit scan
+        st.caption("📡 Simulate a scanned strip:")
+        _strip_cols = st.columns(4)
+        _strip_cols[0].button("🟥 Dehydrated", help="pH 2.5 — magenta/wine",
+                              on_click=_sim, kwargs={"shade": "dehydrated"},
+                              key="strip_dehydrated", use_container_width=True)
+        _strip_cols[1].button("🟧 Poor Control", help="pH 3.0 — deep burgundy",
+                              on_click=_sim, kwargs={"shade": "poor_control"},
+                              key="strip_poor_control", use_container_width=True)
+        _strip_cols[2].button("✅ Healthy", help="pH 3.6 — orange-red",
+                              on_click=_sim, kwargs={"shade": "healthy"},
+                              key="strip_healthy", use_container_width=True)
+        _strip_cols[3].button("🩷 Anemic", help="pH 3.9 — light orange",
+                              on_click=_sim, kwargs={"shade": "anemic"},
+                              key="strip_anemic", use_container_width=True)
+
+        # Persistent scan-result banner (stays visible until next scan)
+        _banner_label = st.session_state.get("microbit_banner")
+        if _banner_label:
+            _banner_style = {
+                "DEHYDRATED": ("#b71c1c", "#fdecea", "🟥"),
+                "ANEMIC": ("#ad1457", "#fce4ec", "🩷"),
+                "POORLY CONTROLLED": ("#e65100", "#fff3e0", "🟧"),
+                "HEALTHY": ("#1b5e20", "#e8f5e9", "✅"),
+                "UNCLASSIFIED": ("#455a64", "#eceff1", "❓"),
+            }.get(_banner_label, ("#455a64", "#eceff1", "📡"))
+            _b_color, _b_bg, _b_icon = _banner_style
+            st.markdown(
+                f"""
+                <div style="background:{_b_bg}; border:2px solid {_b_color};
+                            border-radius:8px; padding:14px 20px;
+                            font-family:'Helvetica Neue',Arial,sans-serif;
+                            display:flex; align-items:center; gap:14px;">
+                  <div style="font-size:1.8em;">{_b_icon}</div>
+                  <div>
+                    <div style="font-size:0.8em; color:#666; text-transform:uppercase;
+                                letter-spacing:1.5px; font-weight:600;">
+                      📡 Scanner Result
+                    </div>
+                    <div style="font-size:1.3em; font-weight:800; color:{_b_color};
+                                letter-spacing:1px;">
+                      SCAN COMPLETE — {_banner_label} DETECTED
+                    </div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
         st.markdown("---")
 
@@ -472,15 +599,22 @@ def main():
         st.markdown("---")
 
         # Predict trigger (also auto-fires when the micro:bit signals SCAN COMPLETE).
-        # Hide the manual button in report mode (when a sample is loaded).
+        # Use an on_click callback so the click survives the 500ms autorefresh race.
         auto_predict = st.session_state.pop("microbit_auto_predict", False)
-        manual_predict = False
-        if not _has_sample:
-            manual_predict = st.button("🔍 Calculate Risk", type="primary", use_container_width=True)
-        if manual_predict:
+
+        def _trigger_manual_predict() -> None:
             st.session_state["show_prediction"] = True
             st.session_state["prediction_source"] = "manual"
-        elif auto_predict:
+
+        st.button(
+            "🔍 Calculate Risk",
+            type="primary",
+            use_container_width=True,
+            on_click=_trigger_manual_predict,
+            key="calc_risk_btn",
+        )
+
+        if auto_predict:
             st.session_state["show_prediction"] = True
             st.session_state["prediction_source"] = "scan"
 
@@ -493,6 +627,38 @@ def main():
             _source_pill = ("📡 micro:bit strip scanner"
                             if st.session_state.get("prediction_source") == "scan"
                             else "✍️ Manual entry")
+            # Scanner status pill — color-coded per detected shade
+            _hd_shade = st.session_state.get("microbit_last_shade", "")
+            _hd_styles = {
+                "dehydrated":   ("DEHYDRATED",        "#b71c1c", "#fdecea", "🟥"),
+                "anemic":       ("ANEMIC",            "#ad1457", "#fce4ec", "🩷"),
+                "poor_control": ("POORLY CONTROLLED", "#e65100", "#fff3e0", "🟧"),
+                "healthy":      ("HEALTHY",           "#1b5e20", "#e8f5e9", "✅"),
+            }
+            _status_html = ""
+            if st.session_state.get("prediction_source") == "scan" and _hd_shade in _hd_styles:
+                _lbl, _fg, _bg, _icon = _hd_styles[_hd_shade]
+                _status_html = (
+                    f'<div style="display:inline-block; background:{_bg}; color:{_fg}; '
+                    f'border:2px solid {_fg}; border-radius:20px; padding:4px 14px; '
+                    f'font-weight:800; font-size:0.9em; letter-spacing:1px;">'
+                    f'{_icon} STATUS: {_lbl}</div>'
+                )
+            # Embed the logo image as base64 so the letterhead prints correctly
+            _report_logo_path = Path(__file__).parent.parent / "docs" / "logo.png"
+            if _report_logo_path.exists():
+                _report_logo_b64 = base64.b64encode(_report_logo_path.read_bytes()).decode("ascii")
+                _brand_html = (
+                    f'<img src="data:image/png;base64,{_report_logo_b64}" '
+                    f'style="height:48px; vertical-align:middle; margin-right:10px;">'
+                    f'<span style="font-size:1.4em; font-weight:800; color:#1f77b4; '
+                    f'letter-spacing:1px; vertical-align:middle;">BetaSense Diagnostics™</span>'
+                )
+            else:
+                _brand_html = (
+                    '<div style="font-size:1.4em; font-weight:800; color:#1f77b4; '
+                    'letter-spacing:1px;">🏥 BetaSense Diagnostics™</div>'
+                )
             st.markdown(
                 f"""
                 <div style="border: 2px solid #1f77b4; padding: 18px 22px; border-radius: 8px;
@@ -501,8 +667,8 @@ def main():
                   <div style="display: flex; justify-content: space-between; align-items: flex-start;
                               border-bottom: 1px solid #1f77b4; padding-bottom: 10px; margin-bottom: 10px;">
                     <div>
-                      <div style="font-size: 1.4em; font-weight: 800; color: #1f77b4; letter-spacing: 1px;">
-                        🏥 BetaSense Diagnostics™
+                      <div>
+                        {_brand_html}
                       </div>
                       <div style="margin-top: 4px; color: #666; font-size: 0.88em;">
                         Pediatric Metabolic Health Laboratory<br>
@@ -515,15 +681,168 @@ def main():
                       <strong>Authorized by:</strong> Dr. M. Saxena, MD
                     </div>
                   </div>
-                  <div style="font-size: 0.95em; color: #222;">
+                  <div style="font-size: 0.95em; color: #222; margin-bottom: 10px;">
                     <strong>Patient:</strong> {_patient} &nbsp;·&nbsp;
                     <strong>Test Panel:</strong> Pediatric Diabetes Risk (v2.1) &nbsp;·&nbsp;
                     <strong>Source:</strong> {_source_pill}
                   </div>
+                  {_status_html}
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+
+            # ─── Clinical Flags (only on real/simulated scans) ─────────────────
+            _flag_shade = st.session_state.get("microbit_last_shade", "")
+            _flag_ratio = st.session_state.get("microbit_last_red_ratio", 0.0)
+            if st.session_state.get("prediction_source") == "scan" and _flag_shade:
+                _flag_specs = {
+                    "dehydrated": {
+                        "color": "#b71c1c",
+                        "bg": "#fdecea",
+                        "title": "⚠️ FLAG: Dark / Burgundy Blood — Possible Dehydration",
+                        "finding": (
+                            "Sample appears dark and concentrated. Total RGB signal "
+                            "below normal reference range, with red ratio of "
+                            f"{_flag_ratio:.0f}%."
+                        ),
+                        "mechanism": (
+                            "In poorly controlled Type 2 Diabetes, hyperglycemia "
+                            "causes osmotic diuresis: excess glucose in the blood "
+                            "pulls water into the urine, leading to frequent "
+                            "urination (polyuria) and progressive dehydration. "
+                            "Dehydrated blood has higher hematocrit and appears "
+                            "darker and more viscous."
+                        ),
+                        "recommend": (
+                            "Recommend hydration status check, fasting glucose, "
+                            "and HbA1c review. If glucose >200 mg/dL with "
+                            "dehydration signs, evaluate for hyperosmolar state."
+                        ),
+                        "source": (
+                            "American Diabetes Association — Standards of Care 2024, "
+                            "Section 4: Comprehensive Medical Evaluation."
+                        ),
+                    },
+                    "anemic": {
+                        "color": "#ad1457",
+                        "bg": "#fce4ec",
+                        "title": "⚠️ FLAG: Light / Salmon Blood — Possible Anemia",
+                        "finding": (
+                            "Sample appears pale with elevated overall reflectivity. "
+                            f"Red ratio of {_flag_ratio:.0f}% is within range, but "
+                            "low color saturation suggests reduced hemoglobin."
+                        ),
+                        "mechanism": (
+                            "Long-standing Type 2 Diabetes is associated with "
+                            "diabetic nephropathy in ~30–40% of cases. Damaged "
+                            "kidneys produce less erythropoietin (EPO), the hormone "
+                            "that signals red blood cell production. The result is "
+                            "anemia of chronic kidney disease — fewer red cells "
+                            "and paler blood. Diabetic patients have ~3× the rate "
+                            "of anemia vs. the general population (NHANES data)."
+                        ),
+                        "recommend": (
+                            "Recommend complete blood count (CBC) with hemoglobin, "
+                            "ferritin, and serum creatinine / eGFR to evaluate "
+                            "kidney function."
+                        ),
+                        "source": (
+                            "Thomas MC et al. — Diabetes Care 2003; 26(4):1164–1169. "
+                            "Anemia in patients with type 2 diabetes."
+                        ),
+                    },
+                    "poor_control": {
+                        "color": "#e65100",
+                        "bg": "#fff3e0",
+                        "title": "⚠️ FLAG: Brick / Rust Tint — Possible Diabetic Dyslipidemia",
+                        "finding": (
+                            "Sample shows elevated green channel relative to blue, "
+                            "producing a rust/orange-shifted red. This pattern is "
+                            "consistent with lipemic blood (elevated triglycerides)."
+                        ),
+                        "mechanism": (
+                            "Poorly controlled Type 2 Diabetes is strongly linked "
+                            "to dyslipidemia: high triglycerides, low HDL, and "
+                            "small dense LDL particles. Lipemic plasma — blood with "
+                            "high circulating fats — appears turbid and shifts the "
+                            "visible color toward orange/rust. This is one of the "
+                            "components of metabolic syndrome."
+                        ),
+                        "recommend": (
+                            "Recommend fasting lipid panel (total cholesterol, LDL, "
+                            "HDL, triglycerides) and HbA1c. Consider metabolic "
+                            "syndrome workup if BMI >25 and waist circumference "
+                            "elevated."
+                        ),
+                        "source": (
+                            "Mooradian AD. — Nat Rev Endocrinol 2009; 5(3):150–159. "
+                            "Dyslipidemia in type 2 diabetes mellitus."
+                        ),
+                    },
+                    "healthy": {
+                        "color": "#1b5e20",
+                        "bg": "#e8f5e9",
+                        "title": "✅ FINDING: Normal Blood Color — No Color-Based Flags",
+                        "finding": (
+                            f"Sample shows bright true-red appearance with red ratio "
+                            f"of {_flag_ratio:.0f}% and total signal within normal "
+                            "reference range. No dehydration, anemia, or lipemia "
+                            "indicators detected via spectral analysis."
+                        ),
+                        "mechanism": (
+                            "Healthy, well-hydrated blood with normal hemoglobin "
+                            "appears bright red. This rules out (but does not "
+                            "exclude) acute T2D complications visible by color. "
+                            "Continue to risk score below for diabetes risk "
+                            "stratification based on lifestyle and biomarker data."
+                        ),
+                        "recommend": (
+                            "Proceed with standard risk assessment. No additional "
+                            "color-triggered workup indicated."
+                        ),
+                        "source": "Internal reference range (BetaSense v2.1).",
+                    },
+                }
+                _spec = _flag_specs.get(_flag_shade)
+                if _spec:
+                    st.markdown(
+                        f"""
+                        <div style="border-left: 6px solid {_spec['color']};
+                                    background: {_spec['bg']};
+                                    padding: 14px 18px; border-radius: 6px;
+                                    margin-bottom: 18px;
+                                    font-family: 'Helvetica Neue', Arial, sans-serif;
+                                    color: #222;">
+                          <div style="font-size: 1.05em; font-weight: 700;
+                                      color: {_spec['color']}; margin-bottom: 8px;">
+                            {_spec['title']}
+                          </div>
+                          <div style="font-size: 0.9em; margin-bottom: 8px;">
+                            <strong>Finding:</strong> {_spec['finding']}
+                          </div>
+                          <div style="font-size: 0.9em; margin-bottom: 8px;">
+                            <strong>Clinical context (T2D link):</strong>
+                            {_spec['mechanism']}
+                          </div>
+                          <div style="font-size: 0.9em; margin-bottom: 8px;">
+                            <strong>Recommended follow-up:</strong> {_spec['recommend']}
+                          </div>
+                          <div style="font-size: 0.78em; color: #555;
+                                      border-top: 1px dashed #999; padding-top: 6px;">
+                            <em>Reference: {_spec['source']}</em>
+                          </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+            # Top-of-report Print button — easier to reach than the one at the bottom
+            if st.button("🖨️ Print Report", use_container_width=True, key="print_top"):
+                components.html(
+                    "<script>window.parent.print();</script>",
+                    height=0,
+                )
 
             # Prepare input data for full model (must match training feature order)
             input_data_full = {
@@ -595,19 +914,29 @@ def main():
 
             df_hypothesis = pd.DataFrame([input_data_hypothesis])[feature_order_hypothesis]
 
-            # Make predictions
+            # Make predictions — cached by input values so the 150ms autorefresh
+            # doesn't re-run the model 7x/second on identical inputs.
             try:
-                # Predict HOMA-IR (insulin resistance)
-                homa_ir_pred = homa_ir_model.predict(df_homa_ir)[0]
-
-                # Predict HOMA-B (beta-cell function)
-                homa_b_pred = homa_b_model.predict(df_homa_b)[0]
-
-                # Calculate composite risk
-                composite_risk = risk_calculator.calculate_composite_risk(homa_ir_pred, homa_b_pred)
-
-                # Predict with hypothesis model (lifestyle only)
-                homa_ir_hypothesis = hypothesis_model.predict(df_hypothesis)[0]
+                _pred_key = (
+                    tuple(df_homa_ir.iloc[0].tolist()),
+                    tuple(df_homa_b.iloc[0].tolist()),
+                    tuple(df_hypothesis.iloc[0].tolist()),
+                )
+                if st.session_state.get("_pred_cache_key") == _pred_key:
+                    homa_ir_pred = st.session_state["_pred_homa_ir"]
+                    homa_b_pred = st.session_state["_pred_homa_b"]
+                    composite_risk = st.session_state["_pred_composite"]
+                    homa_ir_hypothesis = st.session_state["_pred_hypothesis"]
+                else:
+                    homa_ir_pred = homa_ir_model.predict(df_homa_ir)[0]
+                    homa_b_pred = homa_b_model.predict(df_homa_b)[0]
+                    composite_risk = risk_calculator.calculate_composite_risk(homa_ir_pred, homa_b_pred)
+                    homa_ir_hypothesis = hypothesis_model.predict(df_hypothesis)[0]
+                    st.session_state["_pred_cache_key"] = _pred_key
+                    st.session_state["_pred_homa_ir"] = homa_ir_pred
+                    st.session_state["_pred_homa_b"] = homa_b_pred
+                    st.session_state["_pred_composite"] = composite_risk
+                    st.session_state["_pred_hypothesis"] = homa_ir_hypothesis
 
                 # Display results
                 st.markdown("---")
@@ -764,9 +1093,9 @@ def main():
                         st.write(f"**Action:** {rec['action']}")
                         st.write(f"**Details:** {rec['details']}")
 
-                # Print Report button (uses the browser's native print dialog)
+                # Print Report button (bottom — duplicate of the one near the top)
                 st.markdown("---")
-                if st.button("🖨️ Print Report", use_container_width=True):
+                if st.button("🖨️ Print Report", use_container_width=True, key="print_bottom"):
                     components.html(
                         "<script>window.parent.print();</script>",
                         height=0,
@@ -779,6 +1108,208 @@ def main():
     # =========================================================================
     # PAGE 2: PROTEIN STRUCTURE (AlphaFold3)
     # =========================================================================
+    elif page == "❤️ Heart Pulse":
+        st.title("❤️ Real-Time Heart Pulse Monitor")
+        st.caption("Live heartbeat signal from the fingertip pulse sensor")
+
+        # FRAGMENT: only the live monitor block re-runs every second.
+        # The rest of the page (title, expander) does NOT re-render, so no fade.
+        @st.fragment(run_every=1.0)
+        def _pulse_live_monitor():
+            _snap_pulse = listener.snapshot()
+            buf = _snap_pulse.get("pulse_buffer", [])
+            bpm = _snap_pulse.get("last_bpm", 0)
+
+            _bpm_color = "#1b5e20"
+            _bpm_status = "NORMAL"
+            if bpm > 0:
+                if bpm < 60:
+                    _bpm_color, _bpm_status = "#e65100", "LOW"
+                elif bpm > 100:
+                    _bpm_color, _bpm_status = "#b71c1c", "HIGH"
+            else:
+                _bpm_color, _bpm_status = "#455a64", "waiting for signal…"
+
+            st.markdown(
+                f"""
+                <div style="background: linear-gradient(to right, #fff0f3, #ffffff);
+                            border: 3px solid {_bpm_color}; border-radius: 12px;
+                            padding: 24px; margin-bottom: 20px; text-align: center;
+                            font-family: 'Helvetica Neue', Arial, sans-serif;">
+                  <div style="font-size: 1.0em; color: #666; letter-spacing: 2px;
+                              text-transform: uppercase; margin-bottom: 8px;">
+                    Current Heart Rate
+                  </div>
+                  <div style="font-size: 4em; font-weight: 900; color: {_bpm_color};
+                              line-height: 1; margin-bottom: 4px;">
+                    {bpm if bpm > 0 else '--'} <span style="font-size:0.35em; color:#666;">BPM</span>
+                  </div>
+                  <div style="font-size: 0.95em; color: {_bpm_color}; font-weight: 700;
+                              letter-spacing: 1px;">
+                    {_bpm_status}
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            ts_buf = _snap_pulse.get("pulse_timestamps", [])
+            if buf and len(buf) >= 5 and ts_buf:
+                import plotly.graph_objects as _go
+                # Use last 3 seconds of data, plotted against seconds-ago on X axis
+                # so the trace is time-anchored and scrolls smoothly instead of jumping.
+                _now = ts_buf[-1]
+                _pairs = [(t - _now, v) for t, v in zip(ts_buf, buf) if _now - t <= 3.0]
+                if _pairs:
+                    _xs, _ys = zip(*_pairs)
+                    _fig = _go.Figure(
+                        data=_go.Scatter(
+                            x=list(_xs), y=list(_ys),
+                            mode="lines",
+                            line=dict(color="#e91e63", width=2.5, shape="spline"),
+                            fill="tozeroy",
+                            fillcolor="rgba(233,30,99,0.08)",
+                        )
+                    )
+                    _fig.update_layout(
+                        height=280,
+                        margin=dict(l=10, r=10, t=10, b=10),
+                        xaxis=dict(
+                            title="seconds ago",
+                            range=[-3, 0],
+                            fixedrange=True,
+                            gridcolor="#eee",
+                        ),
+                        yaxis=dict(
+                            title="signal",
+                            fixedrange=True,
+                            gridcolor="#eee",
+                        ),
+                        paper_bgcolor="white",
+                        plot_bgcolor="white",
+                        showlegend=False,
+                        transition_duration=0,
+                    )
+                    st.plotly_chart(_fig, use_container_width=True, config={"displayModeBar": False})
+            else:
+                st.info("👉 Place your finger on the pulse sensor. Waveform will appear here as data streams in.")
+
+            col_a, col_b, col_c = st.columns(3)
+            col_a.metric("Samples buffered", len(buf))
+            col_b.metric("Sample rate", "~50 Hz")
+            col_c.metric("Sensor status",
+                         "🟢 Streaming" if len(buf) > 20 else "⚪ Waiting")
+
+            # ─── T2D Clinical Interpretation ───────────────────────────────
+            if bpm > 0:
+                if bpm < 60:
+                    _cflag = {
+                        "color": "#0277bd", "bg": "#e1f5fe", "icon": "🔵",
+                        "title": "SLOW HEARTBEAT — under 60 beats per minute",
+                        "finding": (
+                            f"Your heart rate of {bpm} BPM is slower than the "
+                            "normal range (60–100 BPM)."
+                        ),
+                        "mechanism": (
+                            "A slow heart rate is usually a sign of being very fit — "
+                            "athletes often have slow resting heart rates. This is "
+                            "generally healthy. But in some people with diabetes, a "
+                            "slow heart rate can be a warning sign that nerves controlling "
+                            "the heart aren't working well."
+                        ),
+                    }
+                elif bpm <= 90:
+                    _cflag = {
+                        "color": "#1b5e20", "bg": "#e8f5e9", "icon": "✅",
+                        "title": "NORMAL HEARTBEAT — healthy range",
+                        "finding": (
+                            f"Your heart rate of {bpm} BPM is right in the healthy "
+                            "range (60–90 BPM). No warning signs detected."
+                        ),
+                        "mechanism": (
+                            "A normal resting heart rate is a good sign that your "
+                            "body is balanced and your heart is working well at rest. "
+                            "This means low risk of heart problems linked to diabetes."
+                        ),
+                    }
+                elif bpm <= 100:
+                    _cflag = {
+                        "color": "#e65100", "bg": "#fff3e0", "icon": "🟧",
+                        "title": "SLIGHTLY FAST HEARTBEAT — early warning sign",
+                        "finding": (
+                            f"Your heart rate of {bpm} BPM is at the high end of "
+                            "normal (90–100 BPM). If it stays this high often, it "
+                            "could be a sign of stress on your body."
+                        ),
+                        "mechanism": (
+                            "A faster-than-usual resting heart rate can be an early "
+                            "warning sign for diabetes risk. Studies show that for "
+                            "every 10 BPM your resting heart rate goes up, the risk "
+                            "of getting type 2 diabetes goes up by about 24%."
+                        ),
+                    }
+                else:  # > 100
+                    _cflag = {
+                        "color": "#b71c1c", "bg": "#fdecea", "icon": "🟥",
+                        "title": "FAST HEARTBEAT — over 100 beats per minute",
+                        "finding": (
+                            f"Your heart rate of {bpm} BPM is faster than the "
+                            "normal upper limit of 100 BPM. This is worth checking out."
+                        ),
+                        "mechanism": (
+                            "A resting heart rate that stays fast in people with "
+                            "diabetes can mean the nerves controlling the heart have "
+                            "been damaged by high blood sugar over time. This happens "
+                            "in a lot of people with long-term diabetes and raises "
+                            "the risk of heart problems, so a doctor's check-up is a "
+                            "good idea."
+                        ),
+                    }
+                st.markdown(
+                    f"""
+                    <div style="border-left: 6px solid {_cflag['color']};
+                                background: {_cflag['bg']};
+                                padding: 14px 18px; border-radius: 6px;
+                                margin-top: 18px;
+                                font-family: 'Helvetica Neue', Arial, sans-serif;
+                                color: #222;">
+                      <div style="font-size: 1.05em; font-weight: 700;
+                                  color: {_cflag['color']}; margin-bottom: 8px;">
+                        {_cflag['icon']} {_cflag['title']}
+                      </div>
+                      <div style="font-size: 0.9em; margin-bottom: 8px;">
+                        <strong>Finding:</strong> {_cflag['finding']}
+                      </div>
+                      <div style="font-size: 0.9em; margin-bottom: 8px;">
+                        <strong>Why this matters for diabetes:</strong>
+                        {_cflag['mechanism']}
+                      </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+        _pulse_live_monitor()
+
+        st.markdown("---")
+        with st.expander("ℹ️ About the Heart Pulse Monitor"):
+            st.markdown("""
+            **How it works:** The finger-clip sensor shines light through your fingertip
+            and measures how much passes through. Every time your heart beats, blood pushes
+            through your finger and changes how much light gets through. This creates the
+            wavy pattern you see on the screen.
+
+            **How the app finds your BPM:** The app looks at the peaks (the tallest points)
+            in the waveform — each peak is a heartbeat. It then counts how far apart the
+            heartbeats are and turns that into beats per minute.
+
+            **Why it matters for diabetes:** Heart rate is a clue about how well your body
+            is working. People with diabetes often have a faster resting heart rate because
+            high blood sugar can affect the nerves that control the heart. Watching your
+            heart rate along with the blood-strip scanner gives a fuller picture of your
+            health.
+            """)
+
     elif page == "🧬 Protein Structure":
         st.title("🧬 AlphaFold3 Protein Structure")
         st.write("Interactive 3D view of the **Insulin Receptor + miRNA complex** predicted by AlphaFold3.")
@@ -814,6 +1345,10 @@ def main():
             show_surface = st.checkbox("Show Surface", value=False)
 
         with col2:
+            # Lazy-import the heavy 3D libs only when this page is opened
+            from stmol import showmol
+            import py3Dmol
+
             # Build 3D viewer
             viewer = py3Dmol.view(width=700, height=500)
             viewer.addModel(cif_data, "cif")
@@ -1030,7 +1565,7 @@ def main():
 
     # Footer
     st.markdown("---")
-    st.caption("BetaSense | Built with ❤️ for science fair | Powered by Machine Learning & SHAP")
+    st.caption("BetaSense Diagnostics™ · Detecting diabetes risk before it becomes diagnosis · NHANES-trained ML + SHAP explainability + biosensor integration")
 
 
 if __name__ == "__main__":

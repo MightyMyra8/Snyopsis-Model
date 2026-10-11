@@ -12,6 +12,7 @@ process even when Streamlit hot-reloads the script.
 import random
 import threading
 import time
+from collections import deque
 
 import serial
 import serial.tools.list_ports
@@ -39,6 +40,14 @@ class MicrobitListener:
         self.scan_count: int = 0
         self.failed_scan_count: int = 0
         self.last_line: str = ""
+        self.last_shade: str = ""        # "dark" | "normal" | "light" | ""
+        self.last_red_ratio: float = 0.0 # 0..100, percent of total RGB
+        # Pulse sensor — rolling buffer of last 200 samples + derived BPM
+        self.pulse_buffer: deque = deque(maxlen=200)
+        self.pulse_timestamps: deque = deque(maxlen=200)
+        self.last_bpm: int = 0
+        self._peak_times: deque = deque(maxlen=10)
+        self._pulse_baseline: float = 512.0
         self.error: str | None = None
         self._lock = threading.Lock()
         self._thread = threading.Thread(
@@ -72,6 +81,52 @@ class MicrobitListener:
                             continue
                         with self._lock:
                             self.last_line = line
+                            # Parse fields tolerantly — micro:bit USB serial drops
+                            # characters under load, so use fuzzy substring matching
+                            # against known shade keywords.
+                            line_lower = line.lower()
+                            if "hydrat" in line_lower or "dehyd" in line_lower or "dhyd" in line_lower:
+                                self.last_shade = "dehydrated"
+                            elif "poor" in line_lower or "control" in line_lower or "ontrol" in line_lower:
+                                self.last_shade = "poor_control"
+                            elif "heal" in line_lower or "ealthy" in line_lower:
+                                self.last_shade = "healthy"
+                            elif "anem" in line_lower or "nemic" in line_lower:
+                                self.last_shade = "anemic"
+                            import re
+                            ratio_match = re.search(r"ratio=([\d.]+)", line)
+                            if ratio_match:
+                                try:
+                                    self.last_red_ratio = float(ratio_match.group(1))
+                                except ValueError:
+                                    pass
+                            # Pulse sensor: micro:bit streams "PULSE=<value>" ~50Hz
+                            pulse_match = re.search(r"PULSE=(\d+)", line)
+                            if pulse_match:
+                                try:
+                                    val = int(pulse_match.group(1))
+                                    now = time.time()
+                                    self.pulse_buffer.append(val)
+                                    self.pulse_timestamps.append(now)
+                                    self._pulse_baseline = 0.98 * self._pulse_baseline + 0.02 * val
+                                    if len(self.pulse_buffer) >= 6:
+                                        recent = list(self.pulse_buffer)[-6:]
+                                        threshold = self._pulse_baseline + 30
+                                        if (val > threshold
+                                                and val == max(recent)
+                                                and (not self._peak_times
+                                                     or now - self._peak_times[-1] > 0.35)):
+                                            self._peak_times.append(now)
+                                            if len(self._peak_times) >= 3:
+                                                intervals = [
+                                                    self._peak_times[i + 1] - self._peak_times[i]
+                                                    for i in range(len(self._peak_times) - 1)
+                                                ]
+                                                avg_interval = sum(intervals) / len(intervals)
+                                                if 0.35 <= avg_interval <= 2.0:
+                                                    self.last_bpm = int(60.0 / avg_interval)
+                                except ValueError:
+                                    pass
                             if FAIL_SIGNAL in line:
                                 self.failed_scan_count += 1
                             elif SCAN_SIGNAL in line:
@@ -90,13 +145,21 @@ class MicrobitListener:
                 "scan_count": self.scan_count,
                 "failed_scan_count": self.failed_scan_count,
                 "last_line": self.last_line,
+                "last_shade": self.last_shade,
+                "last_red_ratio": self.last_red_ratio,
+                "pulse_buffer": list(self.pulse_buffer),
+                "pulse_timestamps": list(self.pulse_timestamps),
+                "last_bpm": self.last_bpm,
                 "error": self.error,
             }
 
-    def simulate_scan(self) -> None:
+    def simulate_scan(self, shade: str = "") -> None:
         with self._lock:
             self.scan_count += 1
-            self.last_line = f"{SCAN_SIGNAL} (simulated)"
+            tag = f" shade={shade}" if shade else ""
+            self.last_line = f"{SCAN_SIGNAL} (simulated){tag}"
+            if shade:
+                self.last_shade = shade
 
 
 def generate_sample(seed: int | None = None) -> dict:

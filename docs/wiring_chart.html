@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BetaSense — micro:bit ↔ TCS3200 Wiring Chart</title>
+<style>
+  @media print {
+    @page { size: letter portrait; margin: 0.5in; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none; }
+  }
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    max-width: 760px;
+    margin: 24px auto;
+    color: #222;
+    padding: 0 16px;
+  }
+  h1 {
+    color: #1f77b4;
+    border-bottom: 3px solid #1f77b4;
+    padding-bottom: 6px;
+    margin-bottom: 4px;
+  }
+  .sub { color: #666; font-size: 0.95em; margin-bottom: 20px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 18px;
+    font-size: 0.95em;
+  }
+  th {
+    background: #1f77b4;
+    color: white;
+    padding: 8px 10px;
+    text-align: left;
+    border: 1px solid #1f77b4;
+  }
+  td {
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    vertical-align: middle;
+  }
+  tr:nth-child(even) td { background: #f7faff; }
+  .wire { font-weight: bold; }
+  .swatch {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 1px solid #555;
+    margin-right: 6px;
+    vertical-align: -2px;
+  }
+  .pin {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    background: #fff3cd;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid #ffeaa7;
+  }
+  .jumper { color: #777; font-style: italic; }
+  .section { margin-top: 24px; }
+  .footer { margin-top: 30px; font-size: 0.8em; color: #777; text-align: center; }
+  .legend { background: #fffbe6; border-left: 4px solid #f1c40f; padding: 10px 14px; margin-bottom: 16px; font-size: 0.9em; }
+  .print-btn {
+    background: #1f77b4; color: white; border: none; padding: 10px 18px;
+    border-radius: 4px; font-size: 1em; cursor: pointer; margin-bottom: 18px;
+  }
+</style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">🖨️ Print this page</button>
+
+<h1>🏥 BetaSense Wiring Chart</h1>
+<div class="sub">micro:bit V2 ↔ TCS3200 (GY-31) Color Sensor — Project reference</div>
+
+<div class="legend">
+  <strong>5 wires go to the micro:bit edge connector</strong> (red, black, yellow, white, blue).
+  <strong>4 jumpers stay on the sensor module</strong> itself (S0, S1, OE, LED).
+</div>
+
+<h2 class="section">Main connections</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Sensor pin</th>
+      <th>Wire color</th>
+      <th>micro:bit pin</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="wire">VCC</td>
+      <td><span class="swatch" style="background:#d32f2f;"></span> Red</td>
+      <td><span class="pin">3V</span></td>
+      <td>Power (3.3V)</td>
+    </tr>
+    <tr>
+      <td class="wire">GND</td>
+      <td><span class="swatch" style="background:#222;"></span> Black</td>
+      <td><span class="pin">GND</span></td>
+      <td>Ground</td>
+    </tr>
+    <tr>
+      <td class="wire">OUT</td>
+      <td><span class="swatch" style="background:#fbc02d;"></span> Yellow</td>
+      <td><span class="pin">P1</span></td>
+      <td>Frequency signal (sensor → micro:bit)</td>
+    </tr>
+    <tr>
+      <td class="wire">S2</td>
+      <td><span class="swatch" style="background:#fafafa;"></span> White</td>
+      <td><span class="pin">P2</span></td>
+      <td>Filter select bit 1</td>
+    </tr>
+    <tr>
+      <td class="wire">S3</td>
+      <td><span class="swatch" style="background:#1976d2;"></span> Blue</td>
+      <td><span class="pin">P8</span></td>
+      <td>Filter select bit 2</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 class="section">On-sensor jumpers (no wire needed)</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Sensor pin</th>
+      <th>Jumper to</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="wire">S0</td>
+      <td><span class="pin">VCC (3V)</span></td>
+      <td>Frequency scale HIGH (sets 20% or 100% scaling)</td>
+    </tr>
+    <tr>
+      <td class="wire">S1</td>
+      <td><span class="pin">GND</span></td>
+      <td>Frequency scale LOW</td>
+    </tr>
+    <tr>
+      <td class="wire">OE</td>
+      <td><span class="pin">GND</span></td>
+      <td>Output Enable (active-low, must be grounded)</td>
+    </tr>
+    <tr>
+      <td class="wire">LED</td>
+      <td><span class="pin">VCC (3V)</span></td>
+      <td>Keep onboard white LEDs always on</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 class="section">TCS3200 filter truth table (reference)</h2>
+<table>
+  <thead>
+    <tr>
+      <th>S2</th>
+      <th>S3</th>
+      <th>Filter selected</th>
+      <th>Code call</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>0</td><td>0</td><td>Red</td><td><code>readChannelAvg(0, 0, …)</code></td></tr>
+    <tr><td>0</td><td>1</td><td>Blue (per datasheet) — Green on this board after software swap</td><td><code>readChannelAvg(0, 1, …)</code></td></tr>
+    <tr><td>1</td><td>0</td><td>Clear (no filter)</td><td>—</td></tr>
+    <tr><td>1</td><td>1</td><td>Green (per datasheet) — Blue on this board after software swap</td><td><code>readChannelAvg(1, 1, …)</code></td></tr>
+  </tbody>
+</table>
+
+<h2 class="section">pH strip classification thresholds</h2>
+<table>
+  <thead>
+    <tr>
+      <th>pH strip</th>
+      <th>Color</th>
+      <th>gOverR</th>
+      <th>App state</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>2.5</td><td>Magenta / wine</td><td>&gt; 0.94</td><td>🟥 Dehydrated</td></tr>
+    <tr><td>3.0</td><td>Deep burgundy</td><td>0.87 – 0.94</td><td>🟧 Poorly Controlled</td></tr>
+    <tr><td>3.6</td><td>Orange-red</td><td>0.82 – 0.87</td><td>✅ Healthy</td></tr>
+    <tr><td>3.9</td><td>Light orange</td><td>0.65 – 0.82</td><td>🩷 Anemic</td></tr>
+    <tr><td>—</td><td>Anything else</td><td>&lt; 0.65 or signal too dim</td><td>❌ SCAN FAILED</td></tr>
+  </tbody>
+</table>
+
+<div class="footer">
+  BetaSense Diagnostics™ · Science Fair Project · Authored by Myra Saxena
+</div>
+
+</body>
+</html>

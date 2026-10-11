@@ -271,12 +271,12 @@ def hyperparameter_tuning(
 
 
 if __name__ == "__main__":
-    # Test data preparation
-    print("THE PEDIATRIC SENTINEL - Training Pipeline Test")
+    
+    
     print("=" * 70)
 
-    # Load modeling dataset
-    data_file = Path(__file__).parent.parent.parent / "data" / "processed" / "modeling_dataset.csv"
+    # Load data
+    dathow can a_file = Path(__file__).parent.parent.parent / "data" / "processed" / "modeling_dataset.csv"
 
     if not data_file.exists():
         print(f"[FAIL] Data file not found: {data_file}")
@@ -284,10 +284,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     df = pd.read_csv(data_file)
-    print(f"\n[OK] Loaded: {data_file.name}")
-    print(f"  Rows: {len(df):,}")
-    print(f"  Columns: {df.shape[1]}")
-
+    
     # Define features
     required_features = [
         'comprehensive_inactivity_score',
@@ -301,10 +298,10 @@ if __name__ == "__main__":
         df, required_features
     )
 
-    # Test cross-validation
+    # Test validation
     from sklearn.ensemble import RandomForestRegressor
     model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
 
     cv_results = train_with_cv(model, X_train, y_train, n_folds=5)
 
-    print(f"\n[OK] Training pipeline test complete!")
+    print(f"\n Training Done!")
